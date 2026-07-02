@@ -4,9 +4,9 @@ from streamlit_folium import st_folium
 from collections import defaultdict
 import sqlite3
 from datetime import date, datetime, timedelta
-
 import json
 
+# 1. GeoJSON 파일 로드 (사전에 용량이 줄어든 파일)
 with open("Dong_2.json", encoding="utf-8") as f:
     geo_data = json.load(f)
 
@@ -50,7 +50,7 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 # ─── 세션 초기화 ───
 if "click_lat" not in st.session_state: st.session_state.click_lat = None
 if "click_lng" not in st.session_state: st.session_state.click_lng = None
-# map_center, map_zoom 초기화 줄을 통째로 삭제합니다.
+if "selected_region" not in st.session_state: st.session_state.selected_region = "" # 행정동 이름 저장용
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
 # ─── CSS (우측 끝 강제 고정 및 눈이 편한 배경색) ───
@@ -58,7 +58,7 @@ st.markdown("""
 <style>
     .block-container { padding-top: 1rem; }
     
-    /* 🕶️ 메인 화면 배경: 눈이 편안하고 부드러운 벚꽃 힌트 오프화이트 컬러 */
+    /* 🕶️ 메인 화면 배경 */
     .stApp {
         background-color: #FAF5F6 !important;
     }
@@ -82,7 +82,7 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; line-height: 18px;
     }
     
-    /* 🎯 점점점(⋮) 버튼을 카드의 무조건 '최우측 상단'으로 강제 고정 */
+    /* 🎯 점점점(⋮) 버튼 우측 상단 고정 */
     div[data-testid="stColumn"] {
         position: relative !important;
     }
@@ -90,15 +90,14 @@ st.markdown("""
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
         position: absolute !important;
         top: 12px !important;
-        right: 18px !important; /* 오른쪽 끝에서 살짝 안으로 조정 */
-        left: auto !important;   /* 왼쪽 정렬 풀기 */
+        right: 18px !important;
+        left: auto !important;
         z-index: 99 !important;
         margin: 0 !important;
         padding: 0 !important;
         width: auto !important;
     }
     
-    /* 점점점 버튼 스타일 투명화 및 터치 영역 최적화 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button {
         background-color: transparent !important;
         border: none !important;
@@ -150,18 +149,19 @@ def delete_report(rid):
 # ─── 사이드바: 제보 폼 & 관리자 모드 ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
-    st.caption("지도를 클릭하여 위치를 선택한 뒤 아래 정보를 입력하세요.")
+    st.caption("지도에서 행정동을 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    if st.session_state.click_lat:
-        st.success(f"📍 선택 좌표: {st.session_state.click_lat:.5f}, {st.session_state.click_lng:.5f}")
+    if st.session_state.click_lat and st.session_state.selected_region:
+        st.success(f"📍 선택 지역: {st.session_state.selected_region}")
     else:
-        st.info("📍 지도를 클릭해 위치를 선택하세요")
+        st.info("📍 지도에서 행정동 구역을 클릭하세요")
 
     nickname = st.text_input("👤 작성자 (닉네임)", placeholder="예: 벚꽃헌터")
     password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 삭제 시 필요")
     
-    loc_name = st.text_input("장소명", placeholder="예: 여의도 윤중로")
+    # 클릭한 행정동 이름이 기본값으로 들어가도록 설정 (사용자가 직접 수정도 가능)
+    loc_name = st.text_input("장소명", value=st.session_state.selected_region, placeholder="예: 여의도 윤중로")
     bloom_date = st.date_input("📅 개화 확인 날짜", value=date.today())
     note = st.text_area("📝 메모 (선택)", placeholder="개화 정도, 날씨 등 자유롭게")
 
@@ -169,13 +169,14 @@ with st.sidebar:
         if bloom_date.month < 2 or bloom_date.month > 5:
             st.warning("벚꽃 개화는 2월에서 5월 범위 내에서 입력해주세요!")
         elif not st.session_state.click_lat:
-            st.warning("지도에서 위치를 먼저 클릭해주세요.")
+            st.warning("지도에서 행정동 위치를 먼저 클릭해주세요.")
         elif not nickname or not password:
             st.warning("닉네임과 비밀번호를 반드시 입력해주세요.")
         else:
             add_report(st.session_state.click_lat, st.session_state.click_lng, loc_name, str(bloom_date), note, nickname, password)
             st.session_state.click_lat = None
             st.session_state.click_lng = None
+            st.session_state.selected_region = ""
             st.toast("🌸 제보가 등록되었습니다!")
             st.rerun()
 
@@ -191,20 +192,43 @@ with st.sidebar:
             st.error("비밀번호 오류")
 
 # ─── 메인 상단: 타이틀 ───
-st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도에서 지역을 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
 
 # ─── 메인: 지도 영역 ───
-# 🛠️ 핀 클릭 시 축척 축소 방지: 세션에 저장된 최신 zoom 배율을 그대로 지도 생성자에 바인딩합니다.
 m = folium.Map(
-    location=[36.5, 127.8], # <- 세션 대신 초기 고정 좌표값 사용
-    zoom_start=7,           # <- 세션 대신 초기 고정 줌값 사용
+    location=[36.5, 127.8],
+    zoom_start=7,
     tiles="CartoDB positron"
 )
 
+# 🗺️ 2. GeoJSON 레이어 추가 (마우스 호버 및 클릭 활성화)
+folium.GeoJson(
+    geo_data,
+    name="행정동 경계",
+    style_function=lambda x: {
+        'fillColor': '#ffffff',  # 평소에는 투명/흰색
+        'color': '#FFB6C1',      # 경계선 색상 (연분홍)
+        'weight': 1,
+        'fillOpacity': 0.05
+    },
+    highlight_function=lambda x: {
+        'fillColor': '#FF1493',  # 마우스 올리면 진분홍으로 하이라이트
+        'color': '#FF1493',
+        'weight': 2,
+        'fillOpacity': 0.3
+    },
+    tooltip=folium.GeoJsonTooltip(
+        fields=['SIDO_NM', 'ADM_CD'],  # GeoJSON의 속성값
+        aliases=['시/도:', '행정동:'],  # 툴팁에 표시될 라벨
+        localize=True,
+        sticky=True
+    )
+).add_to(m)
+
 reports = get_reports()
 today = date.today()
-
 date_coords = defaultdict(list)
+
 for r in reports:
     try:
         b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
@@ -251,7 +275,7 @@ if st.session_state.click_lat:
         icon=folium.DivIcon(html='<div style="font-size:32px">📌</div>', icon_size=(32, 32), icon_anchor=(16, 16))
     ).add_to(m)
 
-# 동적 범례 날짜 매핑
+# 동적 범례
 if date_coords:
     sorted_dates = sorted(list(date_coords.keys()))
     recent_date_str = sorted_dates[-1]  
@@ -271,25 +295,35 @@ legend_html = f'''
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
 
+# 🛠️ "last_object_clicked"를 추가하여 GeoJSON 클릭 시 폴리곤(행정동) 정보를 받아오게 설정
 map_data = st_folium(
     m, 
     width=None, 
     height=600, 
-    key="cherry_blossom_map", # <- KEY 추가 (독립 컴포넌트화)
-    returned_objects=["last_clicked"] # <- "zoom" 제거 (오직 클릭만 추적)
+    key="cherry_blossom_map",
+    returned_objects=["last_clicked", "last_object_clicked"] 
 )
 
-# 사용자가 지도를 '클릭'했을 때만 사이드바에 핀 정보 전달 및 새로고침
+# 3. 지도 클릭 시 좌표와 행정동 이름 동시에 처리하기
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lng = map_data["last_clicked"]["lng"]
     
-    # 대한민국 영토 범위 내에서 클릭했을 때만 작동
+    # 맵 어딘가를 클릭했을 때, 그게 GeoJSON 객체 위라면 정보를 빼옵니다.
+    clicked_feature = map_data.get("last_object_clicked")
+    region_name = ""
+    
+    if clicked_feature:
+        props = clicked_feature.get("properties", {})
+        sido = props.get("SIDO_NM", "")
+        dong = props.get("ADM_CD", "")
+        region_name = f"{sido} {dong}".strip() # 예: "서울특별시 여의도동"
+    
     if 33 <= lat <= 39 and 124 <= lng <= 132:
-        # 중복 rerun 방지용 안전장치 추가
         if st.session_state.click_lat != lat or st.session_state.click_lng != lng:
             st.session_state.click_lat = lat
             st.session_state.click_lng = lng
+            st.session_state.selected_region = region_name # 세션에 이름 저장
             st.rerun()
                     
 # ─── 메인 하단: 제보 목록 영역 ───
@@ -321,7 +355,6 @@ else:
                 location_title = r['location_name'] if r['location_name'] else '제보 위치'
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
-                # 카드 디자인 유지
                 st.markdown(
                     f'<div style="height: 120px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
                     f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {location_title}</h4>'
@@ -331,7 +364,6 @@ else:
                     unsafe_allow_html=True
                 )
                 
-                # 우측 상단 팝오버
                 with st.popover("⋮"):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
