@@ -51,11 +51,6 @@ st.markdown("""
         background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FAF5F6 100%) !important;
     }
     .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.4; }
-    .map-legend {
-        position: absolute; bottom: 30px; right: 10px; z-index: 1000;
-        background: white; padding: 10px; border-radius: 5px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; line-height: 18px;
-    }
     div[data-testid="stColumn"] { position: relative !important; }
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
         position: absolute !important; top: 12px !important; right: 18px !important;
@@ -108,7 +103,7 @@ with st.sidebar:
     st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    # 4) 선택 안내 텍스트가 상태에 따라 완전히 대체되도록 수정
+    # 선택 안내 텍스트
     if st.session_state.selected_region:
         st.markdown(
             f'''
@@ -147,7 +142,6 @@ with st.sidebar:
                 password,
                 st.session_state.selected_region
             )
-            # 초기화
             st.session_state.click_lat = None
             st.session_state.click_lng = None
             st.session_state.selected_region = ""
@@ -174,17 +168,17 @@ m = folium.Map(
     tiles="CartoDB positron"
 )
 
-# 1) 시군구 경계를 투명하게 + 연한 점선 처리
+# 시군구 경계 (점선 투명 배경 유지)
 if geo_data:
     folium.GeoJson(
         geo_data,
         name="시군구 경계",
         style_function=lambda x: {
             'fillColor': '#ffffff',  
-            'color': '#B0B0B0',       # 연한 회색 테두리
-            'weight': 1.0,            # 얇은 선 두께
-            'dashArray': '5, 5',      # 점선 스타일 (요청 반영)
-            'fillOpacity': 0.0        # 배경색 전면 투명화 (요청 반영)
+            'color': '#B0B0B0',       
+            'weight': 1.0,            
+            'dashArray': '5, 5',      
+            'fillOpacity': 0.0        
         },
         highlight_function=lambda x: {
             'color': '#888888',       
@@ -200,27 +194,54 @@ if geo_data:
         )
     ).add_to(m)
 
-# ─── 제보 데이터를 기반으로 한 진한 등치선 시각화 ───
+# ─── 날짜 동적 색상 계산을 위한 범위 설정 ───
 reports = get_reports()
-today = date.today()
+valid_dates = []
+for row in reports:
+    try:
+        valid_dates.append(datetime.strptime(row["bloom_date"], "%Y-%m-%d").date())
+    except: pass
+
+if valid_dates:
+    min_date = min(valid_dates)
+    max_date = max(valid_dates)
+else:
+    min_date = date.today()
+    max_date = date.today()
+
+# ─── 제보 데이터 지도 추가 ───
 date_coords = defaultdict(list)
 
 for row in reports:
     r = dict(row)
     r_lat, r_lng = r.get("lat"), r.get("lng")
-    r_bloom_date = r.get("bloom_date", str(today))
+    r_bloom_date = r.get("bloom_date", str(date.today()))
     r_loc_name = r.get("location_name", "제보 위치")
     r_nickname = r.get("nickname", "익명")
     r_note = r.get("note", "")
     r_region_title = r.get("region_title", "")
     
-    # 등치선도(밀도) 색상 완전 진하게 (요청 2 반영)
-    fill_color = "#E91E63"   # 매우 진한 핫핑크
-    line_color = "#C2185B"   # 짙은 테두리
+    # [요청사항] 일자가 빠를수록 더 진하게 색상 부여
+    try:
+        curr_d = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+        if min_date == max_date:
+            ratio = 1.0
+        else:
+            ratio = (curr_d - min_date).days / float((max_date - min_date).days)
+        ratio = max(0.0, min(1.0, ratio))
+    except:
+        ratio = 1.0
+        
+    fills = ["#880E4F", "#C2185B", "#E91E63", "#F06292", "#F8BBD0"] # 가장 빠른 날(아주 진함) -> 늦은 날(연함)
+    lines = ["#4A0404", "#880E4F", "#C2185B", "#E91E63", "#F06292"]
+    
+    idx = int(ratio * (len(fills) - 1))
+    fill_color = fills[idx]
+    line_color = lines[idx]
     
     marker_title = r_region_title if r_region_title else "지역 미상"
     
-    # 2) 진하게 채색된 원형 마커
+    # 원형 등치선 마커
     folium.CircleMarker(
         location=[r_lat, r_lng],
         radius=16,
@@ -228,7 +249,7 @@ for row in reports:
         weight=1.5,
         fill=True,
         fill_color=fill_color,
-        fill_opacity=0.75, # 불투명도 높여서 진하게 보이도록 함
+        fill_opacity=0.75,
         popup=folium.Popup(f"<b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}", max_width=250)
     ).add_to(m)
     
@@ -239,36 +260,38 @@ for row in reports:
     
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# 3) 등치선 연결은 진한 실선 + 날짜 텍스트 배치
+# 실선 + 날짜 텍스트 배치
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
-        # 실선으로 진하게 그리기
-        folium.PolyLine(
-            locations=coords, 
-            color="#D81B60", 
-            weight=3.5,     # 두껍게
-            opacity=0.9     # 진하게
-            # dash_array 속성을 빼서 온전한 '실선'으로 처리 (요청 3 반영)
-        ).add_to(m)
-        
-        # 선의 중간 지점에 날짜 텍스트 띄우기 (요청 2 반영)
+        folium.PolyLine(locations=coords, color="#D81B60", weight=3.5, opacity=0.9).add_to(m)
         mid_idx = len(coords) // 2
         text_loc = coords[mid_idx]
     elif len(coords) == 1:
-        # 1개일 때도 날짜가 보이도록 위치 지정
         text_loc = coords[0]
         
-    # 지도 위에 직접 글자(날짜)가 박히도록 DivIcon 마커 추가
     folium.map.Marker(
         text_loc,
         icon=folium.features.DivIcon(
             icon_size=(110, 24),
-            icon_anchor=(55, 30), # 선/마커 바로 위쪽에 뜨게 조절
+            icon_anchor=(55, 30), 
             html=f'<div style="font-size: 13px; font-weight: 800; color: #880E4F; background-color: rgba(255,255,255,0.85); border: 1px solid #D81B60; padding: 2px 6px; border-radius: 12px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); white-space: nowrap;">📅 {b_date}</div>'
         )
     ).add_to(m)
 
-# 지도로부터 오브젝트와 클릭 이벤트 데이터 동시 수신
+# ─── [요청사항] 우측 하단 범례 추가 ───
+legend_html = f'''
+<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.95); padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+    <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 8px;">🌸 개화 시기 (원형 마커)</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 11px; color: #555; font-weight: bold;">{min_date}<br>(빠름)</span>
+        <div style="width: 100px; height: 12px; background: linear-gradient(to right, #880E4F, #C2185B, #E91E63, #F06292, #F8BBD0); border-radius: 6px; border: 1px solid #ddd;"></div>
+        <span style="font-size: 11px; color: #555; font-weight: bold;">{max_date}<br>(늦음)</span>
+    </div>
+</div>
+'''
+m.get_root().html.add_child(folium.Element(legend_html))
+
+# 지도로부터 데이터 수신
 map_data = st_folium(
     m, 
     width=None, 
@@ -277,7 +300,7 @@ map_data = st_folium(
     returned_objects=["last_clicked", "last_object_clicked"] 
 )
 
-# 4) 클릭 즉시 해당 지역명 파싱하여 사이드바 상태값 업데이트
+# 사이드바 지역 즉시 갱신
 if map_data:
     clicked_feature = map_data.get("last_object_clicked")
     new_region = ""
@@ -291,7 +314,6 @@ if map_data:
     lat = map_data.get("last_clicked", {}).get("lat") if map_data.get("last_clicked") else None
     lng = map_data.get("last_clicked", {}).get("lng") if map_data.get("last_clicked") else None
     
-    # 지역명이 잡혔고 이전 상태와 다르면 세션 갱신 후 화면 즉시 재구동(rerun)
     if new_region and (st.session_state.selected_region != new_region):
         st.session_state.selected_region = new_region
         st.session_state.click_lat = lat
@@ -321,7 +343,7 @@ else:
                 
                 try:
                     b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-                    days_diff = (today - b_date).days
+                    days_diff = (date.today() - b_date).days
                 except:
                     days_diff = 999
                 
