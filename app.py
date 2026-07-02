@@ -79,7 +79,7 @@ if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "selected_region" not in st.session_state: st.session_state.selected_region = ""
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── CSS 스타일 (나눔고딕 & 점점점 메뉴 화살표 강제 제거) ───
+# ─── 전역 CSS 스타일 (나눔고딕 & 사이드바 폰트 확대 & expand_more 완벽 제거) ───
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
@@ -91,27 +91,49 @@ st.markdown("""
     
     .block-container { padding-top: 1rem; }
     .stApp { background-color: #FAF5F6 !important; }
+    
+    /* 사이드바 스타일 배경색 */
     [data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FAF5F6 100%) !important;
     }
+    
+    /* [수정 요청사항] 사이드바 내부 콘텐츠들 폰트 크기 전반적 상향 */
+    [data-testid="stSidebar"] h2 { font-size: 24px !important; font-weight: 800 !important; }
+    [data-testid="stSidebar"] .stMarkdown p { font-size: 15px !important; line-height: 1.5; }
+    [data-testid="stSidebar"] .stCaption p { font-size: 13px !important; color: #666 !important; }
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { font-size: 15px !important; font-weight: 700 !important; color: #333 !important; }
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { font-size: 14px !important; }
+    [data-testid="stSidebar"] button p { font-size: 16px !important; font-weight: 700 !important; }
+    
     .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.5; }
     
-    /* 제보 내역 카드 우측 상단 팝오버 위치 세팅 */
+    /* 제보 내역 카드 내 우측 상단 미니 팝오버 정렬 정의 */
     div[data-testid="stColumn"] { position: relative !important; }
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
-        position: absolute !important; top: 12px !important; right: 18px !important;
+        position: absolute !important; top: 10px !important; right: 15px !important;
         left: auto !important; z-index: 99 !important; margin: 0 !important; padding: 0 !important;
     }
     
-    /* [수정 요청사항] 화살표(expand_more 아이콘)을 완전히 숨겨서 '점점점'만 남기기 */
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button {
+    /* [수정 요청사항] expand_more 화살표 완벽 해결용 초강력 덮어쓰기 */
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
         background-color: transparent !important; border: none !important;
-        box-shadow: none !important; color: #888 !important; padding: 0 4px !important; font-weight: bold !important;
+        box-shadow: none !important; color: #888 !important; padding: 0 !important;
+        width: 26px !important; height: 26px !important; min-height: 26px !important;
+        display: inline-flex !important; align-items: center !important; justify-content: center !important;
     }
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button svg {
-        display: none !important; /* 화살표 아이콘 완전 삭제 */
+    /* 버튼 내부의 모든 SVG 화살표 및 아이콘 바구니 숨김 처리 */
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] svg,
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] [data-testid="stIcon"],
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] span:not(:empty) {
+        display: none !important;
     }
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button:hover { color: #FF1493 !important; }
+    /* 오직 텍스트 요소(점점점)만 살려내고 크기 키우기 */
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after {
+        content: "⋮"; font-size: 20px !important; font-weight: bold !important; color: #888;
+    }
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
+        color: #FF1493 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -265,7 +287,7 @@ else:
     min_date = date.today()
     max_date = date.today()
 
-# 공통 팔레트 색상 정의
+# 공통 컬러 등급 팔레트
 fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
 lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
 
@@ -340,7 +362,7 @@ for b_date, coords in date_coords.items():
     elif len(coords) == 1:
         text_loc = coords[0]
         
-    # [수정 요청사항] 지도 상의 날짜 배지 글씨 크기 상향(11px -> 13px) 및 박스 크기 최적화
+    # [수정 요청사항] 지도 위 날짜 칸 글자크기 더 확대 (13px화 및 박스 규격 최적화)
     folium.map.Marker(
         text_loc,
         icon=folium.features.DivIcon(
@@ -350,102 +372,6 @@ for b_date, coords in date_coords.items():
         )
     ).add_to(m)
 
-# ─── 우측 하단 범례 확대 버전 ───
+# ─── 우측 하단 범례 ───
 legend_html = f'''
-<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
-    <div style="font-size: 14px; font-weight: 800; color: #333; margin-bottom: 10px; text-align: center;">🌸 개화 시기별 연동 색상</div>
-    <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 13px; color: #4A0014; font-weight: 900; text-align: center; line-height: 1.3;">{min_date}<br>(빠를수록 진함)</span>
-        <div style="width: 150px; height: 16px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 8px; border: 1px solid #ccc;"></div>
-        <span style="font-size: 13px; color: #EC407A; font-weight: 700; text-align: center; line-height: 1.3;">{max_date}<br>(늦을수록 연함)</span>
-    </div>
-</div>
-'''
-m.get_root().html.add_child(folium.Element(legend_html))
-
-# 지도로부터 인터랙션 좌표 캐치
-map_data = st_folium(
-    m, 
-    width=None, 
-    height=600, 
-    key="cherry_blossom_map",
-    returned_objects=["last_clicked"] 
-)
-
-# 파이썬 기반 클릭 및 자동 매핑 가드 로직
-if map_data and map_data.get("last_clicked"):
-    click_pos = map_data["last_clicked"]
-    new_lat = click_pos.get("lat")
-    new_lng = click_pos.get("lng")
-    
-    if new_lat and new_lng and (st.session_state.click_lat != new_lat or st.session_state.click_lng != new_lng):
-        detected_region = find_region_by_point(new_lat, new_lng, geo_data)
-        
-        if detected_region:
-            st.session_state.selected_region = detected_region
-            st.session_state.click_lat = new_lat
-            st.session_state.click_lng = new_lng
-            st.rerun()
-
-# ─── 제보 목록 리스트 ───
-st.markdown("---")
-st.markdown("### 📋 최근 제보 내역")
-
-if not reports:
-    st.caption("아직 제보가 없습니다.")
-else:
-    cols_per_row = 4
-    for i in range(0, len(reports), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for j, row in enumerate(reports[i:i+cols_per_row]):
-            with cols[j]:
-                r = dict(row)
-                r_id = r.get("id")
-                r_loc_name = r.get("location_name", "제보 위치")
-                r_bloom_date = r.get("bloom_date", "")
-                r_note = r.get("note", "")
-                r_nickname = r.get("nickname", "익명")
-                r_password = r.get("password", "")
-                r_region_title = r.get("region_title", "")
-                
-                try:
-                    b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-                    days_diff = (date.today() - b_date).days
-                except:
-                    days_diff = 999
-                
-                card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
-                note_content = r_note if r_note else '메모 없음'
-                card_title = r_region_title if r_region_title else "지역 미상"
-                sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
-                nickname_text = r_nickname if r_nickname else '익명'
-                
-                # 대형 제보 정보 카드 렌더링
-                st.markdown(
-                    f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
-                    f'<h4 style="margin: 0 0 6px; font-size: 17px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
-                    f'<p style="margin: 0; font-size: 14px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                    f'<p style="margin: 4px 0; font-size: 13px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
-                    f'<p style="margin: 6px 0 0; font-size: 14px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; font-weight: 400;">📝 {note_content}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-                
-                # 상단 CSS 효과로 인해 화살표가 제거된 깔끔한 순수 점점점(⋮) 메뉴 작동
-                with st.popover("⋮"):
-                    if st.session_state.is_admin:
-                        st.info("👑 관리자 권한 활성화됨")
-                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
-                            delete_report(r_id)
-                            st.toast("관리자 권한으로 삭제되었습니다.")
-                            st.rerun()
-                    else:
-                        st.caption("작성 시 입력한 비밀번호")
-                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
-                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
-                            if r_password and del_pw == r_password:
-                                delete_report(r_id)
-                                st.success("삭제되었습니다!")
-                                st.rerun()
-                            else:
-                                st.error("비밀번호가 일치하지 않습니다.")
+<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow
