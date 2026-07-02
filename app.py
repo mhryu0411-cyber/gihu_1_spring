@@ -105,6 +105,23 @@ st.markdown("""
     [data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { font-size: 14px !important; }
     [data-testid="stSidebar"] button p { font-size: 16px !important; font-weight: 700 !important; }
     
+    /* 🔥 [추가] st.expander 관리자 메뉴 내 화살표 및 _arrow_right 찌꺼기 영구 박멸 */
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary svg,
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary [data-testid="stIcon"],
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary span[class*="X"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    /* 깨진 레이아웃을 초기화하고 텍스트만 정중앙에 화사하게 배치 */
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary p {
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        color: #444 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline-block !important;
+    }
+    
     .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.5; }
     
     /* [수정 요청사항] 제보 내역 카드 기준으로 팝오버 컨테이너를 우측 상단으로 강제 절대 좌표 지정 */
