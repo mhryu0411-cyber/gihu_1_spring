@@ -3,7 +3,7 @@ import folium
 from streamlit_folium import st_folium
 from collections import defaultdict
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import json
 import os
 
@@ -66,19 +66,6 @@ st.markdown("""
         box-shadow: none !important; color: #888 !important; padding: 0 4px !important; font-weight: bold !important;
     }
     div[data-testid="stColumn"] div[data-testid="stPopover"] button:hover { color: #FF1493 !important; }
-    
-    .welcome-dong {
-        background-color: #FFF0F2;
-        border: 1px dashed #FFB6C1;
-        padding: 15px 12px;
-        border-radius: 8px;
-        text-align: center;
-        font-weight: bold;
-        color: #D2143A;
-        margin-bottom: 15px;
-        font-size: 14px;
-        line-height: 1.5;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,14 +79,11 @@ def get_db():
         location_name TEXT, bloom_date TEXT NOT NULL,
         note TEXT, created_at TEXT DEFAULT (datetime('now','localtime'))
     )""")
-    try:
-        conn.execute("ALTER TABLE reports ADD COLUMN nickname TEXT DEFAULT '익명'")
+    try: conn.execute("ALTER TABLE reports ADD COLUMN nickname TEXT DEFAULT '익명'")
     except: pass
-    try:
-        conn.execute("ALTER TABLE reports ADD COLUMN password TEXT DEFAULT ''")
+    try: conn.execute("ALTER TABLE reports ADD COLUMN password TEXT DEFAULT ''")
     except: pass
-    try:
-        conn.execute("ALTER TABLE reports ADD COLUMN region_title TEXT DEFAULT ''")
+    try: conn.execute("ALTER TABLE reports ADD COLUMN region_title TEXT DEFAULT ''")
     except: pass
     conn.commit()
     return conn
@@ -124,12 +108,13 @@ with st.sidebar:
     st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    if st.session_state.click_lat and st.session_state.selected_region:
+    # 4) 선택 안내 텍스트가 상태에 따라 완전히 대체되도록 수정
+    if st.session_state.selected_region:
         st.markdown(
             f'''
-            <div class="welcome-dong">
+            <div style="background-color: #FFF0F2; border: 2px dashed #FF1493; padding: 15px 12px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
                 <span style="color: #777; font-size: 13px;">📍 현재 선택된 지역</span><br>
-                <span style="font-size: 18px; color: #E8326D; font-weight: 800;">{st.session_state.selected_region}</span>
+                <span style="font-size: 20px; color: #D81B60; font-weight: 900;">{st.session_state.selected_region}</span>
             </div>
             ''', 
             unsafe_allow_html=True
@@ -147,7 +132,7 @@ with st.sidebar:
     if st.button("🌸 제보 등록", use_container_width=True, type="primary"):
         if bloom_date.month < 2 or bloom_date.month > 5:
             st.warning("벚꽃 개화는 2월에서 5월 범위 내에서 입력해주세요!")
-        elif not st.session_state.click_lat:
+        elif not st.session_state.click_lat or not st.session_state.selected_region:
             st.warning("지도에서 원하는 시군구 지역을 먼저 클릭해주세요.")
         elif not nickname or not password:
             st.warning("닉네임과 비밀번호를 반드시 입력해주세요.")
@@ -162,6 +147,7 @@ with st.sidebar:
                 password,
                 st.session_state.selected_region
             )
+            # 초기화
             st.session_state.click_lat = None
             st.session_state.click_lng = None
             st.session_state.selected_region = ""
@@ -188,56 +174,33 @@ m = folium.Map(
     tiles="CartoDB positron"
 )
 
-# 🗺️ 클릭 시 구역 색칠 및 전체 등치선도(경계선) 색상 진하게 변경
+# 1) 시군구 경계를 투명하게 + 연한 점선 처리
 if geo_data:
-    try:
-        def style_map(feature):
-            props = feature.get("properties", {})
-            sido = props.get("SIDO_NM", "")
-            sigungu = props.get("SIGUNGU_NM", "")
-            current_feature_name = f"{sido} {sigungu}".strip()
-            
-            # 선택된 구역: 매우 뚜렷한 진한 핑크/마젠타
-            if st.session_state.selected_region and current_feature_name == st.session_state.selected_region:
-                return {
-                    'fillColor': '#D81B60',  
-                    'color': '#880E4F',      
-                    'weight': 2.5,           
-                    'fillOpacity': 0.7      
-                }
-            # 기본 구역: 기존보다 채도/명도를 낮춰 눈에 더 잘 띄는 진한 핑크톤 적용
-            return {
-                'fillColor': '#F8BBD0',  
-                'color': '#F06292',      
-                'weight': 1.5,           
-                'fillOpacity': 0.35       
-            }
+    folium.GeoJson(
+        geo_data,
+        name="시군구 경계",
+        style_function=lambda x: {
+            'fillColor': '#ffffff',  
+            'color': '#B0B0B0',       # 연한 회색 테두리
+            'weight': 1.0,            # 얇은 선 두께
+            'dashArray': '5, 5',      # 점선 스타일 (요청 반영)
+            'fillOpacity': 0.0        # 배경색 전면 투명화 (요청 반영)
+        },
+        highlight_function=lambda x: {
+            'color': '#888888',       
+            'weight': 2.0,
+            'dashArray': '5, 5',
+            'fillOpacity': 0.0
+        },
+        tooltip=folium.GeoJsonTooltip(
+            fields=['SIDO_NM', 'SIGUNGU_NM'],
+            aliases=['시/도:', '시/군/구:'],
+            localize=True,
+            sticky=True
+        )
+    ).add_to(m)
 
-        folium.GeoJson(
-            geo_data,
-            name="시군구 경계",
-            style_function=style_map,
-            highlight_function=lambda x: {
-                'fillColor': '#E91E63',  
-                'color': '#C2185B',
-                'weight': 2.5,
-                'fillOpacity': 0.5
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['SIDO_NM', 'SIGUNGU_NM'],
-                aliases=['시/도:', '시/군/구:'],
-                localize=True,
-                sticky=True
-            )
-        ).add_to(m)
-    except Exception as geo_err:
-        folium.GeoJson(
-            geo_data,
-            name="시군구 경계 (안전 모드)",
-            style_function=lambda x: {'fillColor': '#F8BBD0', 'color': '#F06292', 'weight': 1.5, 'fillOpacity': 0.35}
-        ).add_to(m)
-
-# 3) 마커를 벚꽃 이모지 대신 심플한 원형(CircleMarker)으로 변경
+# ─── 제보 데이터를 기반으로 한 진한 등치선 시각화 ───
 reports = get_reports()
 today = date.today()
 date_coords = defaultdict(list)
@@ -251,94 +214,89 @@ for row in reports:
     r_note = r.get("note", "")
     r_region_title = r.get("region_title", "")
     
-    try:
-        b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-        days_diff = (today - b_date).days
-    except:
-        days_diff = 999
-    
-    # 시간에 따른 색상 변화 (최근일수록 진하게)
-    circle_color = "#E91E63" if days_diff <= 7 else "#F48FB1"
-    circle_fill = "#F06292" if days_diff <= 7 else "#FCE4EC"
-    circle_opacity = 0.9 if days_diff <= 7 else 0.5
+    # 등치선도(밀도) 색상 완전 진하게 (요청 2 반영)
+    fill_color = "#E91E63"   # 매우 진한 핫핑크
+    line_color = "#C2185B"   # 짙은 테두리
     
     marker_title = r_region_title if r_region_title else "지역 미상"
     
+    # 2) 진하게 채색된 원형 마커
     folium.CircleMarker(
         location=[r_lat, r_lng],
-        radius=7,
-        color=circle_color,
-        weight=2,
+        radius=16,
+        color=line_color,
+        weight=1.5,
         fill=True,
-        fill_color=circle_fill,
-        fill_opacity=circle_opacity,
+        fill_color=fill_color,
+        fill_opacity=0.75, # 불투명도 높여서 진하게 보이도록 함
         popup=folium.Popup(f"<b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}", max_width=250)
+    ).add_to(m)
+    
+    # 중심점 코어
+    folium.CircleMarker(
+        location=[r_lat, r_lng], radius=3, color="#FFFFFF", weight=1, fill=True, fill_color="#4A0404", fill_opacity=1.0
     ).add_to(m)
     
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
+# 3) 등치선 연결은 진한 실선 + 날짜 텍스트 배치
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
-        try:
-            dt = datetime.strptime(b_date, "%Y-%m-%d").date()
-            diff = (today - dt).days
-        except:
-            diff = 999
-        line_color = "#E91E63" if diff <= 7 else "#F48FB1"
-        folium.PolyLine(locations=coords, color=line_color, weight=2.2, dash_array='5, 5', opacity=0.75).add_to(m)
+        # 실선으로 진하게 그리기
+        folium.PolyLine(
+            locations=coords, 
+            color="#D81B60", 
+            weight=3.5,     # 두껍게
+            opacity=0.9     # 진하게
+            # dash_array 속성을 빼서 온전한 '실선'으로 처리 (요청 3 반영)
+        ).add_to(m)
+        
+        # 선의 중간 지점에 날짜 텍스트 띄우기 (요청 2 반영)
+        mid_idx = len(coords) // 2
+        text_loc = coords[mid_idx]
+    elif len(coords) == 1:
+        # 1개일 때도 날짜가 보이도록 위치 지정
+        text_loc = coords[0]
+        
+    # 지도 위에 직접 글자(날짜)가 박히도록 DivIcon 마커 추가
+    folium.map.Marker(
+        text_loc,
+        icon=folium.features.DivIcon(
+            icon_size=(110, 24),
+            icon_anchor=(55, 30), # 선/마커 바로 위쪽에 뜨게 조절
+            html=f'<div style="font-size: 13px; font-weight: 800; color: #880E4F; background-color: rgba(255,255,255,0.85); border: 1px solid #D81B60; padding: 2px 6px; border-radius: 12px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); white-space: nowrap;">📅 {b_date}</div>'
+        )
+    ).add_to(m)
 
-# 범례 레이아웃
-if date_coords:
-    sorted_dates = sorted(list(date_coords.keys()))
-    recent_date_str = sorted_dates[-1]  
-    past_date_str = sorted_dates[0] if len(sorted_dates) > 1 else "이전"
-else:
-    recent_date_str, past_date_str = "제보 없음", "제보 없음"
-
-legend_html = f'''
-<div class="map-legend" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
-    <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; font-weight: bold; color: #555; height: 100px; text-align: right;">
-        <span>📍 {recent_date_str} (최근)</span>
-        <span>{past_date_str}</span>
-    </div>
-    <div style="background: linear-gradient(to bottom, #E91E63, #F48FB1); width: 14px; height: 100px; border-radius: 7px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);"></div>
-</div>
-'''
-m.get_root().html.add_child(folium.Element(legend_html))
-
-# 지도로부터 데이터 받기
+# 지도로부터 오브젝트와 클릭 이벤트 데이터 동시 수신
 map_data = st_folium(
     m, 
     width=None, 
     height=600, 
     key="cherry_blossom_map",
-    returned_objects=["last_clicked", "last_object_clicked", "last_active_drawing"] 
+    returned_objects=["last_clicked", "last_object_clicked"] 
 )
 
-# 데이터 추출 및 세션 저장 데이터 검증
+# 4) 클릭 즉시 해당 지역명 파싱하여 사이드바 상태값 업데이트
 if map_data:
-    lat, lng = None, None
-    if map_data.get("last_clicked"):
-        lat = map_data["last_clicked"]["lat"]
-        lng = map_data["last_clicked"]["lng"]
+    clicked_feature = map_data.get("last_object_clicked")
+    new_region = ""
     
-    clicked_feature = map_data.get("last_object_clicked") or map_data.get("last_active_drawing")
-    region_name = ""
+    if clicked_feature and "properties" in clicked_feature:
+        props = clicked_feature["properties"]
+        sido = props.get("SIDO_NM", "").strip()
+        sigungu = props.get("SIGUNGU_NM", "").strip()
+        new_region = f"{sido} {sigungu}".strip()
     
-    if clicked_feature:
-        props = clicked_feature.get("properties", {})
-        sido = props.get("SIDO_NM", "")
-        sigungu = props.get("SIGUNGU_NM", "")
-        if sido and sigungu:
-            region_name = f"{sido} {sigungu}".strip()
+    lat = map_data.get("last_clicked", {}).get("lat") if map_data.get("last_clicked") else None
+    lng = map_data.get("last_clicked", {}).get("lng") if map_data.get("last_clicked") else None
     
-    if lat and lng and (33 <= lat <= 39 and 124 <= lng <= 132):
-        if st.session_state.click_lat != lat or st.session_state.click_lng != lng or st.session_state.selected_region != region_name:
-            st.session_state.click_lat = lat
-            st.session_state.click_lng = lng
-            if region_name:
-                st.session_state.selected_region = region_name
-            st.rerun()
+    # 지역명이 잡혔고 이전 상태와 다르면 세션 갱신 후 화면 즉시 재구동(rerun)
+    if new_region and (st.session_state.selected_region != new_region):
+        st.session_state.selected_region = new_region
+        st.session_state.click_lat = lat
+        st.session_state.click_lng = lng
+        st.rerun()
                     
 # ─── 제보 목록 리스트 ───
 st.markdown("---")
@@ -367,10 +325,9 @@ else:
                 except:
                     days_diff = 999
                 
-                card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
+                card_border, card_bg = ("#E91E63", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
                 note_content = r_note if r_note else '메모 없음'
                 
-                # 2) 타이틀을 무조건 '지도에서 클릭한 시군구'로 고정
                 card_title = r_region_title if r_region_title else "지역 미상"
                 sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
                 nickname_text = r_nickname if r_nickname else '익명'
