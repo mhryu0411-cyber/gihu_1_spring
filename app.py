@@ -15,7 +15,7 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 def load_geojson():
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "SIGUNGU.geojson")
+        file_path = os.path.join(current_dir, "SIGUNGU_2.geojson")
         with open(file_path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
