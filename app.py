@@ -79,22 +79,19 @@ if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "selected_region" not in st.session_state: st.session_state.selected_region = ""
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── 전역 CSS 스타일 (나눔고딕 & 배경색 완화 & 메뉴 우측 고정 및 화살표 파괴) ───
+# ─── 전역 CSS 스타일 ───
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
 
-    /* 모든 스트림릿 위젯과 텍스트에 나눔고딕 강제 적용 */
     html, body, .stApp, [data-testid="stWidgetLabel"], h1, h2, h3, h4, h5, h6, p, span, div, input, textarea, button {
         font-family: 'Nanum Gothic', sans-serif !important;
     }
     
     .block-container { padding-top: 1rem; }
-    
-    /* 지도와 카드가 있는 메인 배경란을 아주 깨끗하고 연한 순수 화이트로 변경 */
     .stApp { background-color: #FEFCFC !important; }
     
-    /* 사이드바 스타일 배경색 및 내부 폰트 크게 유지 */
+    /* 사이드바 스타일 */
     [data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FFFFFF 100%) !important;
     }
@@ -102,33 +99,15 @@ st.markdown("""
     [data-testid="stSidebar"] .stMarkdown p { font-size: 15px !important; line-height: 1.5; }
     [data-testid="stSidebar"] .stCaption p { font-size: 13px !important; color: #666 !important; }
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { font-size: 15px !important; font-weight: 700 !important; color: #333 !important; }
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { font-size: 14px !important; }
-    [data-testid="stSidebar"] button p { font-size: 16px !important; font-weight: 700 !important; }
-    [data-testid="stSidebar"] [data-testid="stExpander"] summary svg,
-    [data-testid="stSidebar"] [data-testid="stExpander"] summary [data-testid="stIcon"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stExpander"] summary span:has(p) {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stExpander"] summary p {
-        font-size: 15px !important;
-        font-weight: 700 !important;
-        color: #444 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: block !important;
-        width: 100% !important;
-    }
     
     .title-area { text-align: center; margin-top: 10px; margin-bottom: 15px; line-height: 1.5; }
     
-    /* 제보 내역 카드 기준으로 팝오버 컨테이너를 우측 상단으로 강제 절대 좌표 지정 */
-    div[data-testid="stColumn"] { position: relative !important; }
-    div[data-testid="stColumn"] div[data-testid="stPopover"] {
+    /* [수정] 팝오버를 개별 카드(.cherry-card)에 소속되도록 CSS :has() 선택자 활용 */
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) {
+        position: relative !important;
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] {
         position: absolute !important; 
         top: 14px !important; 
         right: 15px !important;
@@ -140,19 +119,17 @@ st.markdown("""
         width: auto !important;
     }
     
-    /* expand_more 화살표 아이콘 완전 파괴 및 순수 점점점(⋮) 구현 */
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
+    /* expand_more 화살표 아이콘 파괴 및 순수 점점점(⋮) 구현 */
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
         background-color: transparent !important; border: none !important;
         box-shadow: none !important; padding: 0 !important;
         width: 24px !important; height: 24px !important; min-height: 24px !important;
         display: inline-flex !important; align-items: center !important; justify-content: center !important;
     }
-    /* 버튼 내부의 모든 원래 요소 숨김 */
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] * {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] * {
         display: none !important;
     }
-    /* 텅 빈 버튼에 CSS 가상 선택자로 큼직한 점점점(⋮)만 새로 주입 */
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after {
         content: "⋮" !important; 
         display: inline-block !important;
         visibility: visible !important;
@@ -161,7 +138,7 @@ st.markdown("""
         color: #999 !important;
         line-height: 1 !important;
     }
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
         color: #FF1493 !important;
     }
 
@@ -170,6 +147,7 @@ st.markdown("""
         max-height: 700px;
         overflow-y: auto;
         padding-right: 5px;
+        overflow-x: hidden;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -207,7 +185,7 @@ def delete_report(rid):
     db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()
 
-# ─── 사이드바 영역 (이미지의 '사이드바' 영역 담당) ───
+# ─── 사이드바 영역 ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
     st.caption("지도에서 원하는 곳을 클릭하면 해당 시군구가 자동 선택됩니다.")
@@ -297,18 +275,19 @@ else:
 fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
 lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
 
-# ─── 메인 화면 레이아웃 분할 (이미지의 '지도' 와 '최근제보내역 카드' 분할 처리) ───
-main_col_map, main_col_cards = st.columns([7, 3])
+# ─── [수정] 메인 화면 레이아웃 분할 (비율 7.5 : 2.5로 조정하여 카드 영역 축소) ───
+main_col_map, main_col_cards = st.columns([7.5, 2.5])
 
 # ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
 with main_col_map:
+    # [수정] zoom_start를 8로 올려 세밀하게 확대, control_scale=True로 스케일바 추가
     m = folium.Map(
         location=[36.3, 127.8],
-        zoom_start=7,
-        tiles="CartoDB positron"
+        zoom_start=8,
+        tiles="CartoDB positron",
+        control_scale=True
     )
 
-    # 시군구 경계 배경 오버레이
     if geo_data:
         folium.GeoJson(
             geo_data,
@@ -328,7 +307,6 @@ with main_col_map:
             }
         ).add_to(m)
 
-    # 제보 데이터 가시화 매핑
     date_coords = defaultdict(list)
 
     for row in reports:
@@ -353,7 +331,6 @@ with main_col_map:
         idx = int(ratio * (len(fills) - 1))
         fill_color = fills[idx]
         line_color = lines[idx]
-        
         marker_title = r_region_title if r_region_title else "지역 미상"
         
         folium.CircleMarker(
@@ -373,7 +350,6 @@ with main_col_map:
         
         date_coords[r_bloom_date].append([r_lat, r_lng])
 
-    # 선 및 날짜 칸 가시화 연동
     for b_date, coords in date_coords.items():
         try:
             curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
@@ -397,7 +373,6 @@ with main_col_map:
         elif len(coords) == 1:
             text_loc = coords[0]
             
-        # 확대된 날짜 배지
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
@@ -407,7 +382,6 @@ with main_col_map:
             )
         ).add_to(m)
 
-    # 지도 내부 범례 박스
     legend_html = f'''
     <div style="position: absolute; bottom: 20px; left: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 12px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
         <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상</div>
@@ -420,7 +394,6 @@ with main_col_map:
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
 
-    # 지도로부터 인터랙션 좌표 캐치 (지도 높이를 우측 스크롤 라인과 맞추어 700으로 최적화)
     map_data = st_folium(
         m, 
         width=None, 
@@ -450,10 +423,8 @@ with main_col_cards:
     if not reports:
         st.caption("아직 등록된 벚꽃 제보가 없습니다.")
     else:
-        # 스크롤 가능 컨테이너 시작
         st.markdown('<div class="scroll-container">', unsafe_allow_html=True)
         
-        # 카드가 오른쪽에 세로 방향으로 누적 배치되도록 컬럼 루프 없이 순차 출력
         for row in reports:
             r = dict(row)
             r_id = r.get("id")
@@ -476,34 +447,35 @@ with main_col_cards:
             sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
             nickname_text = r_nickname if r_nickname else '익명'
             
-            # 정보 카드 UI
-            st.markdown(
-                f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08); position: relative;">'
-                f'<h4 style="margin: 0 0 4px; font-size: 16px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 85%;">🌸 {card_title}</h4>'
-                f'<p style="margin: 0; font-size: 13px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                f'<p style="margin: 4px 0; font-size: 12px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
-                f'<p style="margin: 6px 0 0; font-size: 13px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            
-            # 카드의 우측 상단에 배치되는 점점점(⋮) 오버레이 기능 메뉴
-            with st.popover(""):
-                if st.session_state.is_admin:
-                    st.info("👑 관리자 권한 활성화됨")
-                    if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
-                        delete_report(r_id)
-                        st.toast("관리자 권한으로 삭제되었습니다.")
-                        st.rerun()
-                else:
-                    st.caption("작성 시 입력한 비밀번호")
-                    del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
-                    if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
-                        if r_password and del_pw == r_password:
+            # [수정] st.container()로 묶어 해당 블록 안에 팝오버를 독립적으로 고정시킴
+            with st.container():
+                st.markdown(
+                    f'<div class="cherry-card" style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                    f'<h4 style="margin: 0 0 4px; font-size: 16px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 85%;">🌸 {card_title}</h4>'
+                    f'<p style="margin: 0; font-size: 13px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                    f'<p style="margin: 4px 0; font-size: 12px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
+                    f'<p style="margin: 6px 0 0; font-size: 13px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                
+                # 컨테이너 내부에 팝오버 선언 (이제 각 카드마다 정상적으로 우측 상단에 붙습니다)
+                with st.popover(""):
+                    if st.session_state.is_admin:
+                        st.info("👑 관리자 권한 활성화됨")
+                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
                             delete_report(r_id)
-                            st.success("삭제되었습니다!")
+                            st.toast("관리자 권한으로 삭제되었습니다.")
                             st.rerun()
-                        else:
-                            st.error("비밀번호가 일치하지 않습니다.")
-                            
-        st.markdown('</div>', unsafe_allow_html=True) # 스크롤 가능 컨테이너 종료
+                    else:
+                        st.caption("작성 시 입력한 비밀번호")
+                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
+                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
+                            if r_password and del_pw == r_password:
+                                delete_report(r_id)
+                                st.success("삭제되었습니다!")
+                                st.rerun()
+                            else:
+                                st.error("비밀번호가 일치하지 않습니다.")
+                                
+        st.markdown('</div>', unsafe_allow_html=True)
