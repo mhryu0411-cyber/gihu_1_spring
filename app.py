@@ -1,6 +1,7 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+from collections import defaultdict
 import sqlite3
 from datetime import date, datetime
 
@@ -112,6 +113,7 @@ reports = get_reports()
 today = date.today()
 
 # 3) 날짜에 따른 벚꽃 아이콘 분기 (히트맵 효과)
+date_coords = defaultdict(list)
 for r in reports:
     try:
         b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
@@ -132,6 +134,28 @@ for r in reports:
         )
     ).add_to(m)
 
+    date_coords[r["bloom_date"]].append([r["lat"], r["lng"]])
+
+for b_date, coords in date_coords.items():
+    if len(coords) >= 2:
+        try:
+            dt = datetime.strptime(b_date, "%Y-%m-%d").date()
+            diff = (today - dt).days
+        except:
+            diff = 999
+            
+        # 등치선도 히트맵 기준에 맞춰 최근은 진한 색, 과거는 연한 색 적용
+        line_color = "#FF1493" if diff <= 7 else "#FFB6C1"
+        
+        folium.PolyLine(
+            locations=coords,
+            color=line_color,
+            weight=2.5,          # 선 굵기
+            dash_array='6, 6',   # 점선 스타일
+            opacity=0.7,
+            tooltip=f"🌸 {b_date} 개화 전선" # 선에 마우스를 올리면 날짜가 뜹니다!
+        ).add_to(m)
+
 # 현재 마우스로 새로 선택한 핀 표시
 if st.session_state.click_lat:
     folium.Marker(
@@ -141,13 +165,12 @@ if st.session_state.click_lat:
 
 # 3) 지도 내 우측 하단 범례 추가
 legend_html = '''
-<div class="map-legend" style="width: 160px; padding: 12px; background: rgba(255,255,255,0.9);">
-    <b style="display: block; margin-bottom: 8px; text-align: center;">🌸 개화 시기 히트맵</b>
-    <div style="background: linear-gradient(to right, #FF1493, #FFB6C1); height: 12px; border-radius: 6px; width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
-    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-top: 5px; font-weight: bold;">
-        <span>최근 (진함)</span>
-        <span>과거 (연함)</span>
+<div class="map-legend" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
+    <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; font-weight: bold; color: #555; height: 100px; text-align: right;">
+        <span>🌸 최근</span>
+        <span>과거</span>
     </div>
+    <div style="background: linear-gradient(to bottom, #FF1493, #FFB6C1); width: 14px; height: 100px; border-radius: 7px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);"></div>
 </div>
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
