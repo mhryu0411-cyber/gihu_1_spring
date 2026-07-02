@@ -100,7 +100,7 @@ st.markdown("""
     [data-testid="stSidebar"] .stCaption p { font-size: 13px !important; color: #666 !important; }
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { font-size: 15px !important; font-weight: 700 !important; color: #333 !important; }
     
-    .title-area { text-align: center; margin-top: 10px; margin-bottom: 15px; line-height: 1.5; }
+    .title-area { text-align: left; margin-bottom: 15px; line-height: 1.5; }
     
     /* 팝오버를 개별 카드(.cherry-card)에 소속되도록 CSS :has() 선택자 활용 */
     div[data-testid="stVerticalBlock"]:has(.cherry-card) {
@@ -249,19 +249,6 @@ with st.sidebar:
     else:
         st.session_state.is_admin = False
 
-# ─── 메인 상단 타이틀 ───
-st.markdown(
-    '''
-    <div class="title-area" style="font-family: 'Nanum Gothic', sans-serif;">
-        <h2>🌸 봄철 벚꽃 개화 제보 지도</h2>
-        <p style="color:#4E3629; font-weight: 600; font-size: 15px; margin-bottom: 5px;">
-            여러분이 직접 벚꽃이 개화한 장소들을 제보해보세요! 개화 지도를 통해 위도별 개화 일수의 변화를 살펴볼 수 있습니다.
-        </p>
-    </div>
-    ''', 
-    unsafe_allow_html=True
-)
-
 # ─── 벚꽃 제보 데이터 사전 정리 및 색상 범위 연산 ───
 reports = get_reports()
 valid_dates = []
@@ -284,6 +271,20 @@ main_col_map, main_col_cards = st.columns([7.5, 2.5])
 
 # ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
 with main_col_map:
+    # [수정] 타이틀 영역을 지도 위의 공간(바로 이 자리)으로 한정하여 밀착 배치
+    st.markdown(
+        '''
+        <div class="title-area" style="font-family: 'Nanum Gothic', sans-serif;">
+            <h2 style="margin: 0 0 4px 0;">🌸 봄철 벚꽃 개화 제보</h2>
+            <p style="color:#4E3629; font-weight: 600; font-size: 15px; margin: 0;">
+                여러분이 직접 벚꽃이 개화한 장소들을 제보해보세요!<br>
+                개화 지도를 통해 위도별 개화 일수의 변화를 살펴볼 수 있습니다.
+            </p>
+        </div>
+        ''', 
+        unsafe_allow_html=True
+    )
+
     m = folium.Map(
         location=[36.3, 127.8],
         zoom_start=9,
@@ -377,7 +378,6 @@ with main_col_map:
     for b_date, coords in date_coords.items():
         try:
             curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
-            # [수정] 지도 상에 노출될 라벨 텍스트 가공: 연도를 자르고 '월-일' 양식으로 변경 (YYYY-MM-DD -> MM-DD)
             display_date = curr_d.strftime("%m-%d")
             
             if min_date == max_date:
@@ -405,17 +405,16 @@ with main_col_map:
         elif len(coords) == 1:
             text_loc = coords[0]
             
-        # [수정] 날짜 라벨에서 연도 숨김 처리(display_date 사용) 및 배경 투명도를 조금 더 투명하게(opacity: 0.65) 조정
+        # [수정] 너무 투명하지 않도록 투명도를 미세 조정 (opacity: 0.65 -> 0.78)
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
                 icon_size=(105, 26),
                 icon_anchor=(52, 13), 
-                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 6px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.25); white-space: nowrap; text-align:center; line-height:16px; opacity: 0.65; backdrop-filter: blur(3px);">📅 {display_date}</div>'
+                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 6px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.25); white-space: nowrap; text-align:center; line-height:16px; opacity: 0.78; backdrop-filter: blur(3px);">📅 {display_date}</div>'
             )
         ).add_to(m)
 
-    # 하단 범례 설정 (사용자가 인지하기 쉽도록 범례 날짜는 연도 포함 유지)
     legend_html = f'''
     <div style="position: absolute; bottom: 20px; left: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 12px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
         <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상</div>
@@ -452,6 +451,7 @@ with main_col_map:
 
 # ─── [우측 구역] 최근 제보 내역 카드(Cards List) 영역 ───
 with main_col_cards:
+    # [수정] 상단 타이틀이 지도로 올라가서 생긴 빈 공간 덕분에 최상단으로 딱 맞아 정렬됩니다.
     st.markdown("### 📋 최근 제보 내역")
     
     if not reports:
