@@ -5,6 +5,8 @@ from collections import defaultdict
 import sqlite3
 from datetime import date, datetime, timedelta
 import json
+import os
+
 
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
@@ -13,7 +15,9 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 @st.cache_data(show_spinner="행정동 경계 데이터를 불러오는 중...")
 def load_geojson():
     try:
-        with open("Dong_3.geojson", encoding="utf-8") as f:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "Dong_3.geojson")
+        with open(file_path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         st.error(f"⚠️ GeoJSON 로드 실패: {e}")
