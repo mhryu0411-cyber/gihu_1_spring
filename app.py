@@ -73,7 +73,7 @@ if "click_lat" not in st.session_state:
     st.session_state.click_lat = None
     st.session_state.click_lng = None
 
-# ─── 사이드바: 제보 폼 ───
+# ─── 사이드바: 제보 폼 (제보 목록 제거) ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
     st.caption("지도를 클릭하여 위치를 선택한 뒤 아래 정보를 입력하세요.")
@@ -90,32 +90,13 @@ with st.sidebar:
 
     if st.button("🌸 제보 등록", use_container_width=True, type="primary"):
         if st.session_state.click_lat and bloom_date:
-            add_report(
-                st.session_state.click_lat,
-                st.session_state.click_lng,
-                loc_name,
-                str(bloom_date),
-                note
-            )
+            add_report(st.session_state.click_lat, st.session_state.click_lng, loc_name, str(bloom_date), note)
             st.session_state.click_lat = None
             st.session_state.click_lng = None
             st.toast("🌸 제보가 등록되었습니다!")
             st.rerun()
         else:
             st.warning("지도에서 위치를 먼저 클릭해주세요.")
-
-    st.divider()
-    st.markdown("### 📋 제보 목록")
-    reports = get_reports()
-    if not reports:
-        st.caption("아직 제보가 없습니다.")
-    for r in reports:
-        st.markdown(f"""<div class="report-card">
-            <h4>🌸 {r['location_name'] or '제보 위치'}</h4>
-            <p>📅 {r['bloom_date']}</p>
-            {'<p>📝 '+r['note']+'</p>' if r['note'] else ''}
-            <p style="font-size:11px;color:#aaa">{r['created_at'] or ''}</p>
-        </div>""", unsafe_allow_html=True)
 
 # ─── 메인: 지도 ───
 st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
