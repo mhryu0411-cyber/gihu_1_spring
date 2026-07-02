@@ -29,7 +29,6 @@ def find_region_by_point(lat, lng, geojson):
     if not geojson or lat is None or lng is None:
         return ""
     
-    # 레이 캐스팅(Ray Casting) 알고리즘으로 좌표 판정
     def is_point_in_path(x, y, poly):
         num = len(poly)
         j = num - 1
@@ -80,9 +79,16 @@ if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "selected_region" not in st.session_state: st.session_state.selected_region = ""
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── CSS 스타일 ───
+# ─── [수정 요청사항] 나눔고딕 웹폰트 로드 및 전역 스타일 강제 지정 ───
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
+
+    /* 모든 스트림릿 위젯과 텍스트에 나눔고딕 강제 적용 */
+    html, body, .stApp, [data-testid="stWidgetLabel"], h1, h2, h3, h4, h5, h6, p, span, div, input, textarea, button {
+        font-family: 'Nanum Gothic', sans-serif !important;
+    }
+    
     .block-container { padding-top: 1rem; }
     .stApp { background-color: #FAF5F6 !important; }
     [data-testid="stSidebar"] > div:first-child {
@@ -144,7 +150,7 @@ with st.sidebar:
     if st.session_state.selected_region:
         st.markdown(
             f'''
-            <div style="background-color: #FFF0F2; border: 2px dashed #FF1493; padding: 15px 12px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
+            <div style="font-family: 'Nanum Gothic', sans-serif; background-color: #FFF0F2; border: 2px dashed #FF1493; padding: 15px 12px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
                 <span style="color: #777; font-size: 13px;">📍 현재 선택된 지역</span><br>
                 <span style="font-size: 20px; color: #D81B60; font-weight: 900;">{st.session_state.selected_region}</span>
             </div>
@@ -195,10 +201,10 @@ with st.sidebar:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
 
-# ─── [수정 요청사항] 메인 타이틀 & 멘트 수정 ───
+# ─── 메인 타이틀 & 가이드 멘트 ───
 st.markdown(
     '''
-    <div class="title-area">
+    <div class="title-area" style="font-family: 'Nanum Gothic', sans-serif;">
         <h2>🌸 봄철 벚꽃 개화 제보 지도</h2>
         <p style="color:#4E3629; font-weight: 600; font-size: 15px; margin-bottom: 5px;">
             여러분이 직접 벚꽃이 개화한 장소들을 제보해보세요!
@@ -252,6 +258,10 @@ else:
     min_date = date.today()
     max_date = date.today()
 
+# 공통 팔레트 색상 정의 (0번이 가장 빠름/진함 -> 뒤로 갈수록 늦음/연함)
+fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
+lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
+
 # ─── 제보 데이터 가시화 매핑 ───
 date_coords = defaultdict(list)
 
@@ -264,7 +274,7 @@ for row in reports:
     r_note = r.get("note", "")
     r_region_title = r.get("region_title", "")
     
-    # 일자가 빠를수록(과거일수록) 더 진한 색 배정 로직
+    # 일자가 빠를수록 더 진한 색 배정 로직
     try:
         curr_d = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
         if min_date == max_date:
@@ -275,9 +285,6 @@ for row in reports:
     except:
         ratio = 0.0
         
-    fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
-    lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
-    
     idx = int(ratio * (len(fills) - 1))
     fill_color = fills[idx]
     line_color = lines[idx]
@@ -293,7 +300,7 @@ for row in reports:
         fill=True,
         fill_color=fill_color,
         fill_opacity=0.85,
-        popup=folium.Popup(f"<b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}", max_width=250)
+        popup=folium.Popup(f"<div style='font-family: \"Nanum Gothic\", sans-serif;'><b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}</div>", max_width=250)
     ).add_to(m)
     
     # 중앙 코어 포인트
@@ -303,33 +310,49 @@ for row in reports:
     
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# 등치선 중간 지점 연산 및 날짜 텍스트 중앙 삽입
+# ─── [수정 요청사항] 선 색상과 날짜 칸 색상도 동그라미 색상에 완벽 연동 ───
 for b_date, coords in date_coords.items():
+    try:
+        curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
+        if min_date == max_date:
+            ratio = 0.0
+        else:
+            ratio = (curr_d - min_date).days / float((max_date - min_date).days)
+            ratio = max(0.0, min(1.0, ratio))
+    except:
+        ratio = 0.0
+        
+    idx = int(ratio * (len(fills) - 1))
+    target_fill = fills[idx]   # 날짜 칸의 배경색으로 사용
+    target_line = lines[idx]   # 등치선의 색상 및 배지 테두리로 사용
+    
     if len(coords) >= 2:
-        folium.PolyLine(locations=coords, color="#C2185B", weight=3, opacity=0.85).add_to(m)
+        # 선 색상을 해당 날짜의 고유 연동 테두리 색상(target_line)으로 적용
+        folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.9).add_to(m)
         mid_lat = sum(c[0] for c in coords) / len(coords)
         mid_lng = sum(c[1] for c in coords) / len(coords)
         text_loc = [mid_lat, mid_lng]
     elif len(coords) == 1:
         text_loc = coords[0]
         
+    # 날짜 칸 배경색(target_fill)과 테두리색(target_line) 연동 처리 완료
     folium.map.Marker(
         text_loc,
         icon=folium.features.DivIcon(
-            icon_size=(100, 20),
-            icon_anchor=(50, 10), 
-            html=f'<div style="font-size: 11px; font-weight: 800; color: white; background-color: #7A0026; border: 1px solid white; padding: 2px 6px; border-radius: 10px; box-shadow: 0px 2px 5px rgba(0,0,0,0.4); white-space: nowrap; text-align:center; line-height:14px;">📅 {b_date}</div>'
+            icon_size=(110, 24),
+            icon_anchor=(55, 12), 
+            html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 11px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 2px 6px; border-radius: 10px; box-shadow: 0px 2px 5px rgba(0,0,0,0.3); white-space: nowrap; text-align:center; line-height:14px;">📅 {b_date}</div>'
         )
     ).add_to(m)
 
-# 우측 하단 범례
+# ─── [수정 요청사항] 우측 하단 범례 폰트 및 구조 확대 ───
 legend_html = f'''
-<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 14px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1;">
-    <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 8px; text-align: center;">🌸 개화 시기별 원형 마커 색상</div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 11px; color: #4A0014; font-weight: 900; text-align: center; line-height: 1.2;">{min_date}<br>(빠를수록 진함)</span>
-        <div style="width: 130px; height: 14px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 7px; border: 1px solid #ccc;"></div>
-        <span style="font-size: 11px; color: #EC407A; font-weight: 700; text-align: center; line-height: 1.2;">{max_date}<br>(늦을수록 연함)</span>
+<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
+    <div style="font-size: 14px; font-weight: 800; color: #333; margin-bottom: 10px; text-align: center;">🌸 개화 시기별 연동 색상</div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 13px; color: #4A0014; font-weight: 900; text-align: center; line-height: 1.3;">{min_date}<br>(빠를수록 진함)</span>
+        <div style="width: 150px; height: 16px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 8px; border: 1px solid #ccc;"></div>
+        <span style="font-size: 13px; color: #EC407A; font-weight: 700; text-align: center; line-height: 1.3;">{max_date}<br>(늦을수록 연함)</span>
     </div>
 </div>
 '''
@@ -392,9 +415,9 @@ else:
                 sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
                 nickname_text = r_nickname if r_nickname else '익명'
                 
-                # [수정 요청사항] 전체적인 카드 내부 폰트 크기 대폭 상향 및 여유로운 카드 높이(height) 지정
+                # 대형 카드 스타일 및 나눔고딕 명시 적용
                 st.markdown(
-                    f'<div style="height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                    f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
                     f'<h4 style="margin: 0 0 6px; font-size: 17px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
                     f'<p style="margin: 0; font-size: 14px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
                     f'<p style="margin: 4px 0; font-size: 13px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
