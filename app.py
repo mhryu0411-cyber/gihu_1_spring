@@ -91,7 +91,7 @@ st.markdown("""
     
     .block-container { padding-top: 1rem; }
     
-    /* [수정 요청사항] 지도와 카드가 있는 메인 배경란을 아주 깨끗하고 연한 순수 화이트로 변경 */
+    /* 지도와 카드가 있는 메인 배경란을 아주 깨끗하고 연한 순수 화이트로 변경 */
     .stApp { background-color: #FEFCFC !important; }
     
     /* 사이드바 스타일 배경색 및 내부 폰트 크게 유지 */
@@ -124,9 +124,9 @@ st.markdown("""
         width: 100% !important;
     }
     
-    .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.5; }
+    .title-area { text-align: center; margin-top: 10px; margin-bottom: 15px; line-height: 1.5; }
     
-    /* [수정 요청사항] 제보 내역 카드 기준으로 팝오버 컨테이너를 우측 상단으로 강제 절대 좌표 지정 */
+    /* 제보 내역 카드 기준으로 팝오버 컨테이너를 우측 상단으로 강제 절대 좌표 지정 */
     div[data-testid="stColumn"] { position: relative !important; }
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
         position: absolute !important; 
@@ -140,14 +140,14 @@ st.markdown("""
         width: auto !important;
     }
     
-    /* [수정 요청사항] expand_more 화살표 아이콘 완전 파괴 및 순수 점점점(⋮) 구현 */
+    /* expand_more 화살표 아이콘 완전 파괴 및 순수 점점점(⋮) 구현 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
         background-color: transparent !important; border: none !important;
         box-shadow: none !important; padding: 0 !important;
         width: 24px !important; height: 24px !important; min-height: 24px !important;
         display: inline-flex !important; align-items: center !important; justify-content: center !important;
     }
-    /* 버튼 내부의 모든 원래 요소(화살표 껍데기, 스트림릿 내장 아이콘 전부)를 흔적도 없이 숨김 */
+    /* 버튼 내부의 모든 원래 요소 숨김 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] * {
         display: none !important;
     }
@@ -163,6 +163,13 @@ st.markdown("""
     }
     div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
         color: #FF1493 !important;
+    }
+
+    /* 우측 카드 리스트 영역에 고정 높이 스크롤 바 부여 */
+    .scroll-container {
+        max-height: 700px;
+        overflow-y: auto;
+        padding-right: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -200,7 +207,7 @@ def delete_report(rid):
     db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()
 
-# ─── 사이드바 영역 ───
+# ─── 사이드바 영역 (이미지의 '사이드바' 영역 담당) ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
     st.caption("지도에서 원하는 곳을 클릭하면 해당 시군구가 자동 선택됩니다.")
@@ -260,50 +267,20 @@ with st.sidebar:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
 
-# ─── 메인 타이틀 & 가이드 멘트 ───
+# ─── 메인 상단 타이틀 ───
 st.markdown(
     '''
     <div class="title-area" style="font-family: 'Nanum Gothic', sans-serif;">
         <h2>🌸 봄철 벚꽃 개화 제보 지도</h2>
         <p style="color:#4E3629; font-weight: 600; font-size: 15px; margin-bottom: 5px;">
-            여러분이 직접 벚꽃이 개화한 장소들을 제보해보세요!
-        </p>
-        <p style="color:#D81B60; font-weight: 700; font-size: 15px; margin-top: 0;">
-            개화 지도를 통해, 위도별 개화 일수의 변화를 살펴보세요.
+            여러분이 직접 벚꽃이 개화한 장소들을 제보해보세요! 개화 지도를 통해 위도별 개화 일수의 변화를 살펴볼 수 있습니다.
         </p>
     </div>
     ''', 
     unsafe_allow_html=True
 )
 
-# ─── 메인 지도 생성 ───
-m = folium.Map(
-    location=[36.5, 127.8],
-    zoom_start=7,
-    tiles="CartoDB positron"
-)
-
-# 시군구 경계 배경 오버레이
-if geo_data:
-    folium.GeoJson(
-        geo_data,
-        name="시군구 경계",
-        style_function=lambda x: {
-            'fillColor': '#ffffff',  
-            'color': '#C0C0C0',       
-            'weight': 1.0,            
-            'dashArray': '4, 4',      
-            'fillOpacity': 0.01       
-        },
-        highlight_function=lambda x: {
-            'color': '#FF1493',       
-            'weight': 1.8,
-            'dashArray': '4, 4',
-            'fillOpacity': 0.03
-        }
-    ).add_to(m)
-
-# ─── 날짜 기준 색상 셰이딩 범위 연산 ───
+# ─── 벚꽃 제보 데이터 사전 정리 및 색상 범위 연산 ───
 reports = get_reports()
 valid_dates = []
 for row in reports:
@@ -320,180 +297,213 @@ else:
 fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
 lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
 
-# ─── 제보 데이터 가시화 매핑 ───
-date_coords = defaultdict(list)
+# ─── 메인 화면 레이아웃 분할 (이미지의 '지도' 와 '최근제보내역 카드' 분할 처리) ───
+main_col_map, main_col_cards = st.columns([7, 3])
 
-for row in reports:
-    r = dict(row)
-    r_lat, r_lng = r.get("lat"), r.get("lng")
-    r_bloom_date = r.get("bloom_date", str(date.today()))
-    r_loc_name = r.get("location_name", "제보 위치")
-    r_nickname = r.get("nickname", "익명")
-    r_note = r.get("note", "")
-    r_region_title = r.get("region_title", "")
-    
-    try:
-        curr_d = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-        if min_date == max_date:
+# ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
+with main_col_map:
+    m = folium.Map(
+        location=[36.3, 127.8],
+        zoom_start=7,
+        tiles="CartoDB positron"
+    )
+
+    # 시군구 경계 배경 오버레이
+    if geo_data:
+        folium.GeoJson(
+            geo_data,
+            name="시군구 경계",
+            style_function=lambda x: {
+                'fillColor': '#ffffff',  
+                'color': '#C0C0C0',       
+                'weight': 1.0,            
+                'dashArray': '4, 4',      
+                'fillOpacity': 0.01       
+            },
+            highlight_function=lambda x: {
+                'color': '#FF1493',       
+                'weight': 1.8,
+                'dashArray': '4, 4',
+                'fillOpacity': 0.03
+            }
+        ).add_to(m)
+
+    # 제보 데이터 가시화 매핑
+    date_coords = defaultdict(list)
+
+    for row in reports:
+        r = dict(row)
+        r_lat, r_lng = r.get("lat"), r.get("lng")
+        r_bloom_date = r.get("bloom_date", str(date.today()))
+        r_loc_name = r.get("location_name", "제보 위치")
+        r_nickname = r.get("nickname", "익명")
+        r_note = r.get("note", "")
+        r_region_title = r.get("region_title", "")
+        
+        try:
+            curr_d = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+            if min_date == max_date:
+                ratio = 0.0
+            else:
+                ratio = (curr_d - min_date).days / float((max_date - min_date).days)
+                ratio = max(0.0, min(1.0, ratio))
+        except:
             ratio = 0.0
-        else:
-            ratio = (curr_d - min_date).days / float((max_date - min_date).days)
-            ratio = max(0.0, min(1.0, ratio))
-    except:
-        ratio = 0.0
+            
+        idx = int(ratio * (len(fills) - 1))
+        fill_color = fills[idx]
+        line_color = lines[idx]
         
-    idx = int(ratio * (len(fills) - 1))
-    fill_color = fills[idx]
-    line_color = lines[idx]
-    
-    marker_title = r_region_title if r_region_title else "지역 미상"
-    
-    folium.CircleMarker(
-        location=[r_lat, r_lng],
-        radius=15,
-        color=line_color,
-        weight=1.5,
-        fill=True,
-        fill_color=fill_color,
-        fill_opacity=0.85,
-        popup=folium.Popup(f"<div style='font-family: \"Nanum Gothic\", sans-serif;'><b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}</div>", max_width=250)
-    ).add_to(m)
-    
-    folium.CircleMarker(
-        location=[r_lat, r_lng], radius=2.5, color="#FFFFFF", weight=1, fill=True, fill_color="#25000A", fill_opacity=1.0
-    ).add_to(m)
-    
-    date_coords[r_bloom_date].append([r_lat, r_lng])
+        marker_title = r_region_title if r_region_title else "지역 미상"
+        
+        folium.CircleMarker(
+            location=[r_lat, r_lng],
+            radius=15,
+            color=line_color,
+            weight=1.5,
+            fill=True,
+            fill_color=fill_color,
+            fill_opacity=0.85,
+            popup=folium.Popup(f"<div style='font-family: \"Nanum Gothic\", sans-serif;'><b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}</div>", max_width=250)
+        ).add_to(m)
+        
+        folium.CircleMarker(
+            location=[r_lat, r_lng], radius=2.5, color="#FFFFFF", weight=1, fill=True, fill_color="#25000A", fill_opacity=1.0
+        ).add_to(m)
+        
+        date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# ─── 선 및 날짜 칸 가시화 연동 ───
-for b_date, coords in date_coords.items():
-    try:
-        curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
-        if min_date == max_date:
+    # 선 및 날짜 칸 가시화 연동
+    for b_date, coords in date_coords.items():
+        try:
+            curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
+            if min_date == max_date:
+                ratio = 0.0
+            else:
+                ratio = (curr_d - min_date).days / float((max_date - min_date).days)
+                ratio = max(0.0, min(1.0, ratio))
+        except:
             ratio = 0.0
-        else:
-            ratio = (curr_d - min_date).days / float((max_date - min_date).days)
-            ratio = max(0.0, min(1.0, ratio))
-    except:
-        ratio = 0.0
+            
+        idx = int(ratio * (len(fills) - 1))
+        target_fill = fills[idx]
+        target_line = lines[idx]
         
-    idx = int(ratio * (len(fills) - 1))
-    target_fill = fills[idx]
-    target_line = lines[idx]
-    
-    if len(coords) >= 2:
-        folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.9).add_to(m)
-        mid_lat = sum(c[0] for c in coords) / len(coords)
-        mid_lng = sum(c[1] for c in coords) / len(coords)
-        text_loc = [mid_lat, mid_lng]
-    elif len(coords) == 1:
-        text_loc = coords[0]
-        
-    # 확대된 날짜 배지 (13px 크기 고정 적용)
-    folium.map.Marker(
-        text_loc,
-        icon=folium.features.DivIcon(
-            icon_size=(125, 26),
-            icon_anchor=(62, 13), 
-            html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 7px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.35); white-space: nowrap; text-align:center; line-height:16px;">📅 {b_date}</div>'
-        )
-    ).add_to(m)
+        if len(coords) >= 2:
+            folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.9).add_to(m)
+            mid_lat = sum(c[0] for c in coords) / len(coords)
+            mid_lng = sum(c[1] for c in coords) / len(coords)
+            text_loc = [mid_lat, mid_lng]
+        elif len(coords) == 1:
+            text_loc = coords[0]
+            
+        # 확대된 날짜 배지
+        folium.map.Marker(
+            text_loc,
+            icon=folium.features.DivIcon(
+                icon_size=(125, 26),
+                icon_anchor=(62, 13), 
+                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 7px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.35); white-space: nowrap; text-align:center; line-height:16px;">📅 {b_date}</div>'
+            )
+        ).add_to(m)
 
-# ─── 우측 하단 범례 ───
-legend_html = f'''
-<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
-    <div style="font-size: 14px; font-weight: 800; color: #333; margin-bottom: 10px; text-align: center;">🌸 개화 시기별 연동 색상</div>
-    <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 13px; color: #4A0014; font-weight: 900; text-align: center; line-height: 1.3;">{min_date}<br>(빠를수록 진함)</span>
-        <div style="width: 150px; height: 16px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 8px; border: 1px solid #ccc;"></div>
-        <span style="font-size: 13px; color: #EC407A; font-weight: 700; text-align: center; line-height: 1.3;">{max_date}<br>(늦을수록 연함)</span>
+    # 지도 내부 범례 박스
+    legend_html = f'''
+    <div style="position: absolute; bottom: 20px; left: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 12px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
+        <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; color: #4A0014; font-weight: 900;">{min_date}</span>
+            <div style="width: 110px; height: 12px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 6px;"></div>
+            <span style="font-size: 11px; color: #EC407A; font-weight: 700;">{max_date}</span>
+        </div>
     </div>
-</div>
-'''
-m.get_root().html.add_child(folium.Element(legend_html))
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
 
-# 지도로부터 인터랙션 좌표 캐치
-map_data = st_folium(
-    m, 
-    width=None, 
-    height=600, 
-    key="cherry_blossom_map",
-    returned_objects=["last_clicked"] 
-)
+    # 지도로부터 인터랙션 좌표 캐치 (지도 높이를 우측 스크롤 라인과 맞추어 700으로 최적화)
+    map_data = st_folium(
+        m, 
+        width=None, 
+        height=700, 
+        key="cherry_blossom_map",
+        returned_objects=["last_clicked"] 
+    )
 
-if map_data and map_data.get("last_clicked"):
-    click_pos = map_data["last_clicked"]
-    new_lat = click_pos.get("lat")
-    new_lng = click_pos.get("lng")
-    
-    if new_lat and new_lng and (st.session_state.click_lat != new_lat or st.session_state.click_lng != new_lng):
-        detected_region = find_region_by_point(new_lat, new_lng, geo_data)
+    if map_data and map_data.get("last_clicked"):
+        click_pos = map_data["last_clicked"]
+        new_lat = click_pos.get("lat")
+        new_lng = click_pos.get("lng")
         
-        if detected_region:
-            st.session_state.selected_region = detected_region
-            st.session_state.click_lat = new_lat
-            st.session_state.click_lng = new_lng
-            st.rerun()
+        if new_lat and new_lng and (st.session_state.click_lat != new_lat or st.session_state.click_lng != new_lng):
+            detected_region = find_region_by_point(new_lat, new_lng, geo_data)
+            
+            if detected_region:
+                st.session_state.selected_region = detected_region
+                st.session_state.click_lat = new_lat
+                st.session_state.click_lng = new_lng
+                st.rerun()
 
-# ─── 제보 목록 리스트 ───
-st.markdown("---")
-st.markdown("### 📋 최근 제보 내역")
-
-if not reports:
-    st.caption("아직 제보가 없습니다.")
-else:
-    cols_per_row = 4
-    for i in range(0, len(reports), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for j, row in enumerate(reports[i:i+cols_per_row]):
-            with cols[j]:
-                r = dict(row)
-                r_id = r.get("id")
-                r_loc_name = r.get("location_name", "제보 위치")
-                r_bloom_date = r.get("bloom_date", "")
-                r_note = r.get("note", "")
-                r_nickname = r.get("nickname", "익명")
-                r_password = r.get("password", "")
-                r_region_title = r.get("region_title", "")
-                
-                try:
-                    b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-                    days_diff = (date.today() - b_date).days
-                except:
-                    days_diff = 999
-                
-                card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
-                note_content = r_note if r_note else '메모 없음'
-                card_title = r_region_title if r_region_title else "지역 미상"
-                sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
-                nickname_text = r_nickname if r_nickname else '익명'
-                
-                # 제보 정보 카드 배치
-                st.markdown(
-                    f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
-                    f'<h4 style="margin: 0 0 6px; font-size: 17px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
-                    f'<p style="margin: 0; font-size: 14px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                    f'<p style="margin: 4px 0; font-size: 13px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
-                    f'<p style="margin: 6px 0 0; font-size: 14px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; font-weight: 400;">📝 {note_content}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-                
-                # 상단 CSS 인젝션으로 인해 화살표가 영구 격리되고 우측 상단으로 이동한 순수 점점점(⋮) 메뉴
-                with st.popover(""):
-                    if st.session_state.is_admin:
-                        st.info("👑 관리자 권한 활성화됨")
-                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
+# ─── [우측 구역] 최근 제보 내역 카드(Cards List) 영역 ───
+with main_col_cards:
+    st.markdown("### 📋 최근 제보 내역")
+    
+    if not reports:
+        st.caption("아직 등록된 벚꽃 제보가 없습니다.")
+    else:
+        # 스크롤 가능 컨테이너 시작
+        st.markdown('<div class="scroll-container">', unsafe_allow_html=True)
+        
+        # 카드가 오른쪽에 세로 방향으로 누적 배치되도록 컬럼 루프 없이 순차 출력
+        for row in reports:
+            r = dict(row)
+            r_id = r.get("id")
+            r_loc_name = r.get("location_name", "제보 위치")
+            r_bloom_date = r.get("bloom_date", "")
+            r_note = r.get("note", "")
+            r_nickname = r.get("nickname", "익명")
+            r_password = r.get("password", "")
+            r_region_title = r.get("region_title", "")
+            
+            try:
+                b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+                days_diff = (date.today() - b_date).days
+            except:
+                days_diff = 999
+            
+            card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
+            note_content = r_note if r_note else '메모 없음'
+            card_title = r_region_title if r_region_title else "지역 미상"
+            sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
+            nickname_text = r_nickname if r_nickname else '익명'
+            
+            # 정보 카드 UI
+            st.markdown(
+                f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08); position: relative;">'
+                f'<h4 style="margin: 0 0 4px; font-size: 16px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 85%;">🌸 {card_title}</h4>'
+                f'<p style="margin: 0; font-size: 13px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                f'<p style="margin: 4px 0; font-size: 12px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
+                f'<p style="margin: 6px 0 0; font-size: 13px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+            
+            # 카드의 우측 상단에 배치되는 점점점(⋮) 오버레이 기능 메뉴
+            with st.popover(""):
+                if st.session_state.is_admin:
+                    st.info("👑 관리자 권한 활성화됨")
+                    if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
+                        delete_report(r_id)
+                        st.toast("관리자 권한으로 삭제되었습니다.")
+                        st.rerun()
+                else:
+                    st.caption("작성 시 입력한 비밀번호")
+                    del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
+                    if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
+                        if r_password and del_pw == r_password:
                             delete_report(r_id)
-                            st.toast("관리자 권한으로 삭제되었습니다.")
+                            st.success("삭제되었습니다!")
                             st.rerun()
-                    else:
-                        st.caption("작성 시 입력한 비밀번호")
-                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
-                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
-                            if r_password and del_pw == r_password:
-                                delete_report(r_id)
-                                st.success("삭제되었습니다!")
-                                st.rerun()
-                            else:
-                                st.error("비밀번호가 일치하지 않습니다.")
+                        else:
+                            st.error("비밀번호가 일치하지 않습니다.")
+                            
+        st.markdown('</div>', unsafe_allow_html=True) # 스크롤 가능 컨테이너 종료
