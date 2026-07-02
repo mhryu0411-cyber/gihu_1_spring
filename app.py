@@ -6,7 +6,6 @@ import sqlite3
 from datetime import date, datetime
 import json
 import os
-from shapely.geometry import shape, Point  # 정확한 시군구 매칭을 위한 라이브러리
 
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
@@ -24,24 +23,6 @@ def load_geojson():
         return None
 
 geo_data = load_geojson()
-
-# ─── 좌표 기반 시군구 탐색 함수 ───
-def find_region_by_polygon(lat, lng):
-    """클릭한 좌표(lat, lng)가 어떤 시군구 폴리곤에 포함되는지 정밀 탐색"""
-    if not geo_data:
-        return ""
-    point = Point(lng, lat)  # shapely는 (x, y) 즉 (lng, lat) 순서
-    for feature in geo_data.get("features", []):
-        try:
-            polygon = shape(feature["geometry"])
-            if polygon.contains(point):
-                props = feature.get("properties", {})
-                sido = props.get("SIDO_NM", "").strip()
-                sigungu = props.get("SIGUNGU_NM", "").strip()
-                return f"{sido} {sigungu}".strip()
-        except:
-            continue
-    return ""
 
 # ─── UI 숨김 설정 ───
 final_hide_style = """
@@ -140,7 +121,7 @@ with st.sidebar:
     st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    # 1) 클릭 즉시 SIDO_NM + SIGUNGU_NM 조합하여 사이드바에 강제 노출
+    # 1) 클릭 즉시 SIDO_NM + SIGUNGU_NM 조합하여 사이드바에 즉각 노출
     if st.session_state.click_lat and st.session_state.selected_region:
         st.markdown(
             f'''
@@ -205,19 +186,19 @@ m = folium.Map(
     tiles="CartoDB positron"
 )
 
-# 🗺️ 3), 4) 시군구 경계선은 배경처럼 아주 연하게 수정 (채색 전면 제거)
+# 🗺️ 3), 4) 시군구 경계선은 아주 연한 회색으로 배경 처리 (채색 전면 제거)
 if geo_data:
     folium.GeoJson(
         geo_data,
         name="시군구 경계",
         style_function=lambda x: {
             'fillColor': '#FFFFFF',  
-            'color': '#E0E0E0',       # 극도로 연한 회색 경계선
-            'weight': 0.8,            # 선 두께 최소화
-            'fillOpacity': 0.0        # 시군구 내부 채색 완전 제거
+            'color': '#E0E0E0',       # 연한 회색 선
+            'weight': 0.8,            # 가는 두께
+            'fillOpacity': 0.0        # 투명하게 비우기
         },
         highlight_function=lambda x: {
-            'color': '#B0B0B0',       # 마우스 오버 시에만 살짝 경계 인지 가능하게
+            'color': '#B0B0B0',       
             'weight': 1.2,
             'fillOpacity': 0.0
         },
@@ -229,7 +210,7 @@ if geo_data:
         )
     ).add_to(m)
 
-# ─── 2) 제보 데이터를 기반으로 한 진한 등치선도형 원형 시각화 ───
+# ─── 2) 제보 데이터를 기반으로 한 진한 원형 등치선 시각화 ───
 reports = get_reports()
 today = date.today()
 date_coords = defaultdict(list)
@@ -249,21 +230,21 @@ for row in reports:
     except:
         days_diff = 999
     
-    # 등치선도 효과를 위해 최근 데이터일수록 크고 진한 핫핑크 계열 적용
+    # 최근 데이터일수록 크고 진한 색감 부여 (그림 효과)
     if days_diff <= 7:
         fill_color = "#FF1493"   # 진한 핫핑크
         line_color = "#C71585"
-        radius_size = 22         # 등치선도처럼 넓은 면적 커버
+        radius_size = 22         
         opacity_val = 0.6
     else:
-        fill_color = "#FF69B4"   # 조금 연한 핑크
+        fill_color = "#FF69B4"   # 연한 핑크
         line_color = "#DB7093"
         radius_size = 16
         opacity_val = 0.4
     
     marker_title = r_region_title if r_region_title else "지역 미상"
     
-    # 등치선도 형태의 원형 채색 레이어 (지도에 넓게 깔림)
+    # 원형 등치선 채색 레이어
     folium.CircleMarker(
         location=[r_lat, r_lng],
         radius=radius_size,
@@ -275,7 +256,7 @@ for row in reports:
         popup=folium.Popup(f"<b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}", max_width=250)
     ).add_to(m)
     
-    # 중심점 명확화를 위한 핵심 핀 (중앙 코어 앵커)
+    # 중심점 코어 마커
     folium.CircleMarker(
         location=[r_lat, r_lng],
         radius=3,
@@ -288,33 +269,42 @@ for row in reports:
     
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# 개화 전선 연결선 (색상 강화)
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
         folium.PolyLine(locations=coords, color="#FF1493", weight=2.5, dash_array='6, 6', opacity=0.8).add_to(m)
 
-# 지도로부터 데이터 수신 및 백엔드 지리 연산 처리
+# 지도로부터 오브젝트와 클릭 이벤트 데이터 동시 수신
 map_data = st_folium(
     m, 
     width=None, 
     height=600, 
     key="cherry_blossom_map",
-    returned_objects=["last_clicked"] 
+    returned_objects=["last_clicked", "last_object_clicked"] 
 )
 
-# 1) 클릭 이벤트 가로채기 및 시군구 역산 연산
-if map_data and map_data.get("last_clicked"):
-    lat = map_data["last_clicked"]["lat"]
-    lng = map_data["last_clicked"]["lng"]
+# 1) 외부 설치 없이 내장 객체 분석을 통해 사이드바 지역 매칭 보장
+if map_data:
+    lat, lng = None, None
+    if map_data.get("last_clicked"):
+        lat = map_data["last_clicked"]["lat"]
+        lng = map_data["last_clicked"]["lng"]
+    
+    # 클릭한 구역 객체 파싱
+    clicked_feature = map_data.get("last_object_clicked")
+    region_name = st.session_state.selected_region
+    
+    if clicked_feature and "properties" in clicked_feature:
+        props = clicked_feature["properties"]
+        sido = props.get("SIDO_NM", "").strip()
+        sigungu = props.get("SIGUNGU_NM", "").strip()
+        if sido or sigungu:
+            region_name = f"{sido} {sigungu}".strip()
     
     if lat and lng and (33 <= lat <= 39 and 124 <= lng <= 132):
-        # 클릭한 위경도 좌표 정보를 바탕으로 GeoJSON 내부 구역 역추적 파싱
-        resolved_region = find_region_by_polygon(lat, lng)
-        
-        if st.session_state.click_lat != lat or st.session_state.click_lng != lng or st.session_state.selected_region != resolved_region:
+        if st.session_state.click_lat != lat or st.session_state.click_lng != lng or st.session_state.selected_region != region_name:
             st.session_state.click_lat = lat
             st.session_state.click_lng = lng
-            st.session_state.selected_region = resolved_region
+            st.session_state.selected_region = region_name
             st.rerun()
                     
 # ─── 제보 목록 리스트 ───
@@ -347,7 +337,7 @@ else:
                 card_border, card_bg = ("#FF1493", "#FFE4E1") if days_diff <= 7 else ("#FF69B4", "#FFF5F7")
                 note_content = r_note if r_note else '메모 없음'
                 
-                # 2) 타이틀을 세부 장소가 아닌 무조건 '클릭한 시군구명'으로 강제 고정
+                # 2) 타이틀을 세부 장소가 아닌 클릭한 시군구명으로 고정
                 card_title = r_region_title if r_region_title else "지역 미상"
                 sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
                 nickname_text = r_nickname if r_nickname else '익명'
