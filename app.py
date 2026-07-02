@@ -7,16 +7,15 @@ from datetime import date, datetime, timedelta
 import json
 import os
 
-
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
-# ─── 1. GeoJSON 파일 캐싱 ───
-@st.cache_data(show_spinner="행정동 경계 데이터를 불러오는 중...")
+# ─── 1. GeoJSON 파일 캐싱 (SIGUNGU.geojson 절대 경로 적용) ───
+@st.cache_data(show_spinner="시군구 경계 데이터를 불러오는 중...")
 def load_geojson():
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "Dong_3.geojson")
+        file_path = os.path.join(current_dir, "SIGUNGU.geojson") # 파일명 시군구로 변경
         with open(file_path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
@@ -118,14 +117,14 @@ def delete_report(rid):
 # ─── 사이드바 영역 ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
-    st.caption("지도에서 행정동을 클릭한 뒤 정보를 입력하세요.")
+    st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    # 🎯 [기능 추가] 사용자가 행정동을 클릭하면 상단에 "여기는 무슨 동이네요~" 멘트 띄우기
+    # 🎯 사용자가 구역을 클릭하면 상단에 "여기는 무슨 시/군/구네요~" 멘트 띄우기
     if st.session_state.click_lat and st.session_state.selected_region:
         st.markdown(f'<div class="welcome-dong">📍 여기는 {st.session_state.selected_region}이네요~ 🌸</div>', unsafe_allow_html=True)
     else:
-        st.info("📍 지도에서 행정동 구역을 클릭하세요")
+        st.info("📍 지도에서 시군구 구역을 클릭하세요")
 
     nickname = st.text_input("👤 작성자 (닉네임)", placeholder="예: 벚꽃헌터")
     password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 삭제 시 필요")
@@ -139,7 +138,7 @@ with st.sidebar:
         if bloom_date.month < 2 or bloom_date.month > 5:
             st.warning("벚꽃 개화는 2월에서 5월 범위 내에서 입력해주세요!")
         elif not st.session_state.click_lat:
-            st.warning("지도에서 행정동 위치를 먼저 클릭해주세요.")
+            st.warning("지도에서 위치를 먼저 클릭해주세요.")
         elif not nickname or not password:
             st.warning("닉네임과 비밀번호를 반드시 입력해주세요.")
         else:
@@ -170,12 +169,12 @@ m = folium.Map(
     tiles="CartoDB positron"
 )
 
-# 🗺️ 행정동 구별 경계선 레이어 스타일
+# 🗺️ 시군구 경계선 레이어 스타일 (요청하신 SIDO_NM, SIGUNGU_NM 필드 매칭)
 if geo_data:
     try:
         folium.GeoJson(
             geo_data,
-            name="행정동 경계",
+            name="시군구 경계",
             style_function=lambda x: {
                 'fillColor': '#FFECEF',  
                 'color': '#FF99AA',      
@@ -189,8 +188,8 @@ if geo_data:
                 'fillOpacity': 0.45
             },
             tooltip=folium.GeoJsonTooltip(
-                fields=['SIDO_NM', 'ADM_CD'],
-                aliases=['시/도:', '행정동:'],
+                fields=['SIDO_NM', 'SIGUNGU_NM'], # 새로운 필드명 매칭
+                aliases=['시/도:', '시/군/구:'],
                 localize=True,
                 sticky=True
             )
@@ -198,7 +197,7 @@ if geo_data:
     except Exception as geo_err:
         folium.GeoJson(
             geo_data,
-            name="행정동 경계 (안전 모드)",
+            name="시군구 경계 (안전 모드)",
             style_function=lambda x: {'fillColor': '#FFECEF', 'color': '#FF99AA', 'weight': 1.2, 'fillOpacity': 0.25}
         ).add_to(m)
 
@@ -271,7 +270,7 @@ map_data = st_folium(
     returned_objects=["last_clicked", "last_object_clicked"] 
 )
 
-# 세션 상태 업데이트 처리
+# ─── 🛠️ 지도로부터 데이터 연동 방식 최적화 (무한루프 & 뿌얘짐 차단) ───
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lng = map_data["last_clicked"]["lng"]
@@ -282,12 +281,12 @@ if map_data and map_data.get("last_clicked"):
     if clicked_feature:
         props = clicked_feature.get("properties", {})
         sido = props.get("SIDO_NM", "")
-        # ADM_CD 혹은 adm_cd 변수 둘 다 안전하게 대응
-        dong = props.get("ADM_CD", props.get("adm_cd", ""))
-        region_name = f"{sido} {dong}".strip()
+        sigungu = props.get("SIGUNGU_NM", "") # 요청하신 속성명 대입
+        region_name = f"{sido} {sigungu}".strip()
     
     if 33 <= lat <= 39 and 124 <= lng <= 132:
-        if st.session_state.click_lat != lat or st.session_state.click_lng != lng:
+        # 데이터가 진짜 새로 클릭되어 바뀌었을 때만 세션 저장 및 리런 수행
+        if st.session_state.click_lat != lat or st.session_state.click_lng != lng or st.session_state.selected_region != region_name:
             st.session_state.click_lat = lat
             st.session_state.click_lng = lng
             st.session_state.selected_region = region_name
