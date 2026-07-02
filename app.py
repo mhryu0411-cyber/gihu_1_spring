@@ -5,6 +5,11 @@ from collections import defaultdict
 import sqlite3
 from datetime import date, datetime, timedelta
 
+import json
+
+with open("Dong_2.json", encoding="utf-8") as f:
+    geo_data = json.load(f)
+
 # ─── 숨기기 설정 ───
 final_hide_style = """
             <style>
