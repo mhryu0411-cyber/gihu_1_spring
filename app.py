@@ -237,7 +237,6 @@ with st.sidebar:
 
     st.divider()
     
-    # [수정] _arrow_right 에러를 방지하기 위해 expander 대신 토글 스위치 사용
     is_admin_mode = st.toggle("🛠️ 관리자 메뉴 활성화")
     if is_admin_mode:
         admin_pw = st.text_input("비밀번호", type="password", key="admin_pw", placeholder="관리자 암호")
@@ -285,15 +284,16 @@ main_col_map, main_col_cards = st.columns([7.5, 2.5])
 
 # ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
 with main_col_map:
-    # [수정] zoom_start를 9로 상향 조정
+    # [수정] zoom_snap과 zoom_delta를 추가하여 마우스 휠 및 +/- 조작 시 더 세밀하게 줌 조정
     m = folium.Map(
         location=[36.3, 127.8],
         zoom_start=9,
         tiles="CartoDB positron",
-        control_scale=True
+        control_scale=True,
+        zoom_snap=0.5,
+        zoom_delta=0.5
     )
     
-    # [수정] 축척(Scale)을 우측 하단으로 이동시키는 CSS 주입
     m.get_root().header.add_child(folium.Element("""
     <style>
         .leaflet-bottom.leaflet-left { width: 100%; pointer-events: none; }
@@ -352,19 +352,29 @@ with main_col_map:
         line_color = lines[idx]
         marker_title = r_region_title if r_region_title else "지역 미상"
         
+        # [수정] 여러 겹의 투명도를 가진 원을 그려 히트맵(Glow) 형태로 채움
+        # 1. 가장 넓고 투명한 빛무리
+        folium.CircleMarker(
+            location=[r_lat, r_lng], radius=22, color=None, fill=True, fill_color=fill_color, fill_opacity=0.15
+        ).add_to(m)
+        # 2. 중간 투명도의 빛무리
+        folium.CircleMarker(
+            location=[r_lat, r_lng], radius=13, color=None, fill=True, fill_color=fill_color, fill_opacity=0.35
+        ).add_to(m)
+        # 3. 핵심 코어 및 팝오버 부착 (약간의 투명도 부여)
         folium.CircleMarker(
             location=[r_lat, r_lng],
-            radius=15,
+            radius=6,
             color=line_color,
             weight=1.5,
             fill=True,
             fill_color=fill_color,
-            fill_opacity=0.85,
+            fill_opacity=0.75,
             popup=folium.Popup(f"<div style='font-family: \"Nanum Gothic\", sans-serif;'><b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}</div>", max_width=250)
         ).add_to(m)
-        
+        # 4. 중앙 화이트 닷
         folium.CircleMarker(
-            location=[r_lat, r_lng], radius=2.5, color="#FFFFFF", weight=1, fill=True, fill_color="#25000A", fill_opacity=1.0
+            location=[r_lat, r_lng], radius=2, color="#FFFFFF", weight=0.5, fill=True, fill_color="#25000A", fill_opacity=0.9
         ).add_to(m)
         
         date_coords[r_bloom_date].append([r_lat, r_lng])
@@ -385,19 +395,24 @@ with main_col_map:
         target_line = lines[idx]
         
         if len(coords) >= 2:
-            folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.9).add_to(m)
+            # [수정] 등개화일선(동일 날짜 연결선) 강조를 위해 밑에 두꺼운 흰색 테두리(Glow) 추가
+            folium.PolyLine(locations=coords, color="#ffffff", weight=7.0, opacity=0.6).add_to(m)
+            # 메인 연결선 (투명도 추가)
+            folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.85).add_to(m)
+            
             mid_lat = sum(c[0] for c in coords) / len(coords)
             mid_lng = sum(c[1] for c in coords) / len(coords)
             text_loc = [mid_lat, mid_lng]
         elif len(coords) == 1:
             text_loc = coords[0]
             
+        # [수정] 날짜 DivIcon에 opacity 속성을 추가하여 지도와 자연스럽게 어우러지게 투명도 부여
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
                 icon_size=(125, 26),
                 icon_anchor=(62, 13), 
-                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 7px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.35); white-space: nowrap; text-align:center; line-height:16px;">📅 {b_date}</div>'
+                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 7px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.35); white-space: nowrap; text-align:center; line-height:16px; opacity: 0.85; backdrop-filter: blur(2px);">📅 {b_date}</div>'
             )
         ).add_to(m)
 
@@ -485,14 +500,3 @@ with main_col_cards:
                             st.toast("관리자 권한으로 삭제되었습니다.")
                             st.rerun()
                     else:
-                        st.caption("작성 시 입력한 비밀번호")
-                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
-                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
-                            if r_password and del_pw == r_password:
-                                delete_report(r_id)
-                                st.success("삭제되었습니다!")
-                                st.rerun()
-                            else:
-                                st.error("비밀번호가 일치하지 않습니다.")
-                                
-        st.markdown('</div>', unsafe_allow_html=True)
