@@ -16,12 +16,13 @@ st.markdown("""
         background: linear-gradient(180deg, #FFF0F5, #FFFFFF);
     }
     /* 제보 목록 카드 스타일 */
+    .report-container { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
     .report-card {
-        padding: 12px 16px; margin: 4px;
-        border-radius: 10px; background: #FFF5F7;
+        padding: 10px 14px; 
+        border-radius: 8px; background: #FFF5F7;
         border-left: 4px solid #FF69B4;
-        flex: 1 1 calc(33.33% - 16px); /* 가로로 3개씩 배치되도록 설정 */
-        min-width: 250px;
+        width: 220px; /* 너비 제한 */
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .report-card h4 { margin: 0 0 4px; font-size: 15px; }
     .report-card p { margin: 2px 0; font-size: 13px; color: #666; }
@@ -101,32 +102,61 @@ with st.sidebar:
 # ─── 메인: 지도 ───
 st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
 
+# 1. 상단에 세션 변수 초기화 추가
+if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 127.8]
+if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
+
+# 2. 지도 생성 시 세션 값 주입
 m = folium.Map(
-    location=[36.5, 127.8],
-    zoom_start=7,
-    min_zoom=6,
-    max_bounds=True,
+    location=st.session_state.map_center,
+    zoom_start=st.session_state.map_zoom,
     tiles="CartoDB positron"
 )
-m.fit_bounds([[33, 124], [39, 132]])
+
+# 3. st_folium 호출 시 리턴값에 center와 zoom 추적 추가
+map_data = st_folium(m, width=None, height=600, returned_objects=["last_clicked", "center", "zoom"])
+
+# 4. 지도 조작 감지 시 세션에 저장하는 로직 추가
+if map_data:
+    if map_data.get("center"):
+        st.session_state.map_center = [map_data["center"]["lat"], map_data["center"]["lng"]]
+    if map_data.get("zoom"):
+        st.session_state.map_zoom = map_data["zoom"]
 
 reports = get_reports()
+# 1. 지도 우측 상단/하단에 띄울 범례 스타일 CSS 추가
+# .map-legend { position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: white; ... }
+
+# 2. 마커 생성 반복문 내부에 날짜 비교 및 필터 분기 추가
 for r in reports:
+    try:
+        b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
+        days_diff = (date.today() - b_date).days
+    except:
+        days_diff = 999
+    
+    # 7일 이내는 진한 핫핑크 글리터 효과, 지나간 것은 투명도 0.6 처리
+    shadow_color = "drop-shadow(0 0 6px #FF1493)" if days_diff <= 7 else "drop-shadow(0 2px 3px rgba(0,0,0,.3))"
+    flower_opacity = "1.0" if days_diff <= 7 else "0.6"
+    
     folium.Marker(
         [r["lat"], r["lng"]],
-        popup=folium.Popup(
-            f"<b>{r['location_name'] or '제보 위치'}</b><br>"
-            f"📅 {r['bloom_date']}<br>"
-            f"{r['note'] or ''}",
-            max_width=250
-        ),
+        popup=folium.Popup(...),
         icon=folium.DivIcon(
-            html='<div style="font-size:28px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))">🌸</div>',
-            icon_size=(28, 28),
-            icon_anchor=(14, 14)
+            html=f'<div style="font-size:28px; filter:{shadow_color}; opacity:{flower_opacity};">🌸</div>',
+            icon_size=(28, 28), icon_anchor=(14, 14)
         )
     ).add_to(m)
 
+# 3. 지도 객체(m) 밑에 범례 엘리먼트 강제 삽입
+legend_html = '''
+<div class="map-legend">
+    <b>🌸 개화 시기 기준</b><br>
+    <span class="legend-color" style="background: #FF1493; box-shadow: 0 0 5px #FF1493;"></span> 최근 1주일 이내<br>
+    <span class="legend-color" style="background: #FFB6C1; opacity: 0.6;"></span> 1주일 이전 제보
+</div>
+'''
+m.get_root().html.add_child(folium.Element(legend_html))
 if st.session_state.click_lat:
     folium.Marker(
         [st.session_state.click_lat, st.session_state.click_lng],
