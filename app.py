@@ -500,3 +500,14 @@ with main_col_cards:
                             st.toast("관리자 권한으로 삭제되었습니다.")
                             st.rerun()
                     else:
+                        st.caption("작성 시 입력한 비밀번호")
+                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
+                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
+                            if r_password and del_pw == r_password:
+                                delete_report(r_id)
+                                st.success("삭제되었습니다!")
+                                st.rerun()
+                            else:
+                                st.error("비밀번호가 일치하지 않습니다.")
+                                
+        st.markdown('</div>', unsafe_allow_html=True)
