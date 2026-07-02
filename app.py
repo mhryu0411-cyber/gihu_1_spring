@@ -24,7 +24,7 @@ def load_geojson():
 
 geo_data = load_geojson()
 
-# ─── [수정] 100% 정확한 시군구 매핑을 위한 Point-in-Polygon 알고리즘 ───
+# ─── 100% 정확한 시군구 매핑을 위한 Point-in-Polygon 알고리즘 ───
 def find_region_by_point(lat, lng, geojson):
     if not geojson or lat is None or lng is None:
         return ""
@@ -88,7 +88,7 @@ st.markdown("""
     [data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FAF5F6 100%) !important;
     }
-    .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.4; }
+    .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.5; }
     div[data-testid="stColumn"] { position: relative !important; }
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
         position: absolute !important; top: 12px !important; right: 18px !important;
@@ -195,8 +195,21 @@ with st.sidebar:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
 
-# ─── 메인 타이틀 ───
-st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도 위를 클릭하면 자동으로 해당 시군구 구역이 매핑됩니다</p></div>', unsafe_allow_html=True)
+# ─── [수정 요청사항] 메인 타이틀 & 멘트 수정 ───
+st.markdown(
+    '''
+    <div class="title-area">
+        <h2>🌸 봄철 벚꽃 개화 제보 지도</h2>
+        <p style="color:#4E3629; font-weight: 600; font-size: 15px; margin-bottom: 5px;">
+            여러분이 직접 벚꽃이 개화한 장소들을 제보해보세요!
+        </p>
+        <p style="color:#D81B60; font-weight: 700; font-size: 15px; margin-top: 0;">
+            개화 지도를 통해, 위도별 개화 일수의 변화를 살펴보세요.
+        </p>
+    </div>
+    ''', 
+    unsafe_allow_html=True
+)
 
 # ─── 메인 지도 생성 ───
 m = folium.Map(
@@ -262,7 +275,6 @@ for row in reports:
     except:
         ratio = 0.0
         
-    # 앞쪽 인덱스(0번)일수록 버건디/딥마젠타에 가까운 아주 진한 색상
     fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
     lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
     
@@ -291,18 +303,16 @@ for row in reports:
     
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# ─── [수정] 등치선 중간 지점 연산 및 날짜 텍스트 중앙 삽입 ───
+# 등치선 중간 지점 연산 및 날짜 텍스트 중앙 삽입
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
         folium.PolyLine(locations=coords, color="#C2185B", weight=3, opacity=0.85).add_to(m)
-        # 지리적 평균값을 계산하여 완벽한 등치선 궤적의 '정중앙' 산출
         mid_lat = sum(c[0] for c in coords) / len(coords)
         mid_lng = sum(c[1] for c in coords) / len(coords)
         text_loc = [mid_lat, mid_lng]
     elif len(coords) == 1:
         text_loc = coords[0]
         
-    # 선 중간에 구멍을 뚫고 뱃지가 들어간 것처럼 보이도록 앵커 포인트 조정 중심 배치
     folium.map.Marker(
         text_loc,
         icon=folium.features.DivIcon(
@@ -312,7 +322,7 @@ for b_date, coords in date_coords.items():
         )
     ).add_to(m)
 
-# ─── 우측 하단 범례 ───
+# 우측 하단 범례
 legend_html = f'''
 <div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 14px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1;">
     <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 8px; text-align: center;">🌸 개화 시기별 원형 마커 색상</div>
@@ -325,7 +335,7 @@ legend_html = f'''
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
 
-# 지도로부터 인터랙션 좌표만 캐치
+# 지도로부터 인터랙션 좌표 캐치
 map_data = st_folium(
     m, 
     width=None, 
@@ -334,15 +344,13 @@ map_data = st_folium(
     returned_objects=["last_clicked"] 
 )
 
-# ─── [수정] 무조건 작동하는 파이썬 기반 클릭 및 자동 매핑 가드 로직 ───
+# 파이썬 기반 클릭 및 자동 매핑 가드 로직
 if map_data and map_data.get("last_clicked"):
     click_pos = map_data["last_clicked"]
     new_lat = click_pos.get("lat")
     new_lng = click_pos.get("lng")
     
-    # 무한 루프 리런을 방지하기 위해 직전 세션 좌표와 다를 때만 연산 수행
     if new_lat and new_lng and (st.session_state.click_lat != new_lat or st.session_state.click_lng != new_lng):
-        # 파이썬 수학 연산으로 구역을 직접 판정
         detected_region = find_region_by_point(new_lat, new_lng, geo_data)
         
         if detected_region:
@@ -384,12 +392,13 @@ else:
                 sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
                 nickname_text = r_nickname if r_nickname else '익명'
                 
+                # [수정 요청사항] 전체적인 카드 내부 폰트 크기 대폭 상향 및 여유로운 카드 높이(height) 지정
                 st.markdown(
-                    f'<div style="height: 140px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
-                    f'<h4 style="margin: 0 0 4px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
-                    f'<p style="margin: 0; font-size: 11px; color: #FF1493; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                    f'<p style="margin: 3px 0; font-size: 11px; color: #777;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
-                    f'<p style="margin: 4px 0 0; font-size: 12px; color: #555; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">📝 {note_content}</p>'
+                    f'<div style="height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                    f'<h4 style="margin: 0 0 6px; font-size: 17px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
+                    f'<p style="margin: 0; font-size: 14px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                    f'<p style="margin: 4px 0; font-size: 13px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
+                    f'<p style="margin: 6px 0 0; font-size: 14px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; font-weight: 400;">📝 {note_content}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
