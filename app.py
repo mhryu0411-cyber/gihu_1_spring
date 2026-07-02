@@ -5,6 +5,7 @@ from collections import defaultdict
 import sqlite3
 from datetime import date, datetime, timedelta
 
+# ─── 숨기기 설정 ───
 hide_style = """
             <style>
             [data-testid="stHeader"] {visibility: hidden;} /* 상단 Fork, 깃허브 바 숨기기 */
@@ -15,19 +16,36 @@ st.markdown(hide_style, unsafe_allow_html=True)
 
 hide_style = """
             <style>
-            /* 1. 상단 Fork, GitHub 헤더 바 숨기기 */
-            [data-testid="stHeader"] {visibility: hidden;} 
+            /* 1. 상단 헤더 바 숨기기 */
+            [data-testid="stHeader"] {
+                visibility: hidden !important;
+                display: none !important;
+            }
             
-            /* 2. 하단 기본 푸터 숨기기 */
-            footer {visibility: hidden;} 
+            /* 2. 하단 푸터 숨기기 */
+            footer {
+                visibility: hidden !important;
+                display: none !important;
+            }
             
-            /* 3. 우측 하단 'Hosted with Streamlit' 배지 완전히 제거 */
-            .viewerBadge {display: none !important;}
-            [data-testid="stViewerBadge"] {display: none !important;}
-            div[class^="viewerBadge"] {display: none !important;}
+            /* 3. 우측 하단 배지, 아이콘, 빨간 박스 컨테이너까지 통째로 박멸 */
+            [data-testid="stViewerBadge"], 
+            .viewerBadge,
+            div[class*="viewerBadge"],
+            a[class*="viewerBadge"],
+            span[class*="viewerBadge"],
+            button[class*="viewerBadge"] {
+                display: none !important;
+                visibility: hidden !important;
+                width: 0 !important;
+                height: 0 !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
             </style>
             """
 st.markdown(hide_style, unsafe_allow_html=True)
+
 
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
