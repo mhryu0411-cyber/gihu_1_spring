@@ -374,4 +374,100 @@ for b_date, coords in date_coords.items():
 
 # ─── 우측 하단 범례 ───
 legend_html = f'''
-<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow
+<div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
+    <div style="font-size: 14px; font-weight: 800; color: #333; margin-bottom: 10px; text-align: center;">🌸 개화 시기별 연동 색상</div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 13px; color: #4A0014; font-weight: 900; text-align: center; line-height: 1.3;">{min_date}<br>(빠를수록 진함)</span>
+        <div style="width: 150px; height: 16px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 8px; border: 1px solid #ccc;"></div>
+        <span style="font-size: 13px; color: #EC407A; font-weight: 700; text-align: center; line-height: 1.3;">{max_date}<br>(늦을수록 연함)</span>
+    </div>
+</div>
+'''
+m.get_root().html.add_child(folium.Element(legend_html))
+
+# 지도로부터 인터랙션 좌표 캐치
+map_data = st_folium(
+    m, 
+    width=None, 
+    height=600, 
+    key="cherry_blossom_map",
+    returned_objects=["last_clicked"] 
+)
+
+# 클릭 및 지역 매핑 판정 가드
+if map_data and map_data.get("last_clicked"):
+    click_pos = map_data["last_clicked"]
+    new_lat = click_pos.get("lat")
+    new_lng = click_pos.get("lng")
+    
+    if new_lat and new_lng and (st.session_state.click_lat != new_lat or st.session_state.click_lng != new_lng):
+        detected_region = find_region_by_point(new_lat, new_lng, geo_data)
+        
+        if detected_region:
+            st.session_state.selected_region = detected_region
+            st.session_state.click_lat = new_lat
+            st.session_state.click_lng = new_lng
+            st.rerun()
+
+# ─── 제보 목록 리스트 ───
+st.markdown("---")
+st.markdown("### 📋 최근 제보 내역")
+
+if not reports:
+    st.caption("아직 제보가 없습니다.")
+else:
+    cols_per_row = 4
+    for i in range(0, len(reports), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, row in enumerate(reports[i:i+cols_per_row]):
+            with cols[j]:
+                r = dict(row)
+                r_id = r.get("id")
+                r_loc_name = r.get("location_name", "제보 위치")
+                r_bloom_date = r.get("bloom_date", "")
+                r_note = r.get("note", "")
+                r_nickname = r.get("nickname", "익명")
+                r_password = r.get("password", "")
+                r_region_title = r.get("region_title", "")
+                
+                try:
+                    b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+                    days_diff = (date.today() - b_date).days
+                except:
+                    days_diff = 999
+                
+                card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
+                note_content = r_note if r_note else '메모 없음'
+                card_title = r_region_title if r_region_title else "지역 미상"
+                sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
+                nickname_text = r_nickname if r_nickname else '익명'
+                
+                # 제보 정보 카드 배치
+                st.markdown(
+                    f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                    f'<h4 style="margin: 0 0 6px; font-size: 17px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
+                    f'<p style="margin: 0; font-size: 14px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                    f'<p style="margin: 4px 0; font-size: 13px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
+                    f'<p style="margin: 6px 0 0; font-size: 14px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; font-weight: 400;">📝 {note_content}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                
+                # 상단 CSS 구조로 화살표 강제 제거에 성공한 깔끔 정사각 순수 점점점(⋮) 메뉴 작동
+                with st.popover(""):
+                    if st.session_state.is_admin:
+                        st.info("👑 관리자 권한 활성화됨")
+                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
+                            delete_report(r_id)
+                            st.toast("관리자 권한으로 삭제되었습니다.")
+                            st.rerun()
+                    else:
+                        st.caption("작성 시 입력한 비밀번호")
+                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
+                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
+                            if r_password and del_pw == r_password:
+                                delete_report(r_id)
+                                st.success("삭제되었습니다!")
+                                st.rerun()
+                            else:
+                                st.error("비밀번호가 일치하지 않습니다.")
