@@ -102,7 +102,7 @@ st.markdown("""
     
     .title-area { text-align: center; margin-top: 10px; margin-bottom: 15px; line-height: 1.5; }
     
-    /* [수정] 팝오버를 개별 카드(.cherry-card)에 소속되도록 CSS :has() 선택자 활용 */
+    /* 팝오버를 개별 카드(.cherry-card)에 소속되도록 CSS :has() 선택자 활용 */
     div[data-testid="stVerticalBlock"]:has(.cherry-card) {
         position: relative !important;
     }
@@ -236,7 +236,10 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    with st.expander("🛠️ 관리자 메뉴"):
+    
+    # [수정] _arrow_right 에러를 방지하기 위해 expander 대신 토글 스위치 사용
+    is_admin_mode = st.toggle("🛠️ 관리자 메뉴 활성화")
+    if is_admin_mode:
         admin_pw = st.text_input("비밀번호", type="password", key="admin_pw", placeholder="관리자 암호")
         if admin_pw == "저녁먹쟈":
             st.session_state.is_admin = True
@@ -244,6 +247,8 @@ with st.sidebar:
         elif admin_pw:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
+    else:
+        st.session_state.is_admin = False
 
 # ─── 메인 상단 타이틀 ───
 st.markdown(
@@ -275,18 +280,32 @@ else:
 fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
 lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
 
-# ─── [수정] 메인 화면 레이아웃 분할 (비율 7.5 : 2.5로 조정하여 카드 영역 축소) ───
+# ─── 메인 화면 레이아웃 분할 ───
 main_col_map, main_col_cards = st.columns([7.5, 2.5])
 
 # ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
 with main_col_map:
-    # [수정] zoom_start를 8로 올려 세밀하게 확대, control_scale=True로 스케일바 추가
+    # [수정] zoom_start를 9로 상향 조정
     m = folium.Map(
         location=[36.3, 127.8],
-        zoom_start=8,
+        zoom_start=9,
         tiles="CartoDB positron",
         control_scale=True
     )
+    
+    # [수정] 축척(Scale)을 우측 하단으로 이동시키는 CSS 주입
+    m.get_root().header.add_child(folium.Element("""
+    <style>
+        .leaflet-bottom.leaflet-left { width: 100%; pointer-events: none; }
+        .leaflet-control-scale { 
+            position: absolute !important; 
+            right: 15px !important; 
+            left: auto !important; 
+            bottom: 25px !important; 
+            pointer-events: auto;
+        }
+    </style>
+    """))
 
     if geo_data:
         folium.GeoJson(
@@ -447,7 +466,6 @@ with main_col_cards:
             sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
             nickname_text = r_nickname if r_nickname else '익명'
             
-            # [수정] st.container()로 묶어 해당 블록 안에 팝오버를 독립적으로 고정시킴
             with st.container():
                 st.markdown(
                     f'<div class="cherry-card" style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
@@ -459,7 +477,6 @@ with main_col_cards:
                     unsafe_allow_html=True
                 )
                 
-                # 컨테이너 내부에 팝오버 선언 (이제 각 카드마다 정상적으로 우측 상단에 붙습니다)
                 with st.popover(""):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
