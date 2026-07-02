@@ -5,6 +5,14 @@ from collections import defaultdict
 import sqlite3
 from datetime import date, datetime, timedelta
 
+hide_style = """
+            <style>
+            [data-testid="stHeader"] {visibility: hidden;} /* 상단 Fork, 깃허브 바 숨기기 */
+            footer {visibility: hidden;} /* 하단 로고 숨기기 */
+            </style>
+            """
+st.markdown(hide_style, unsafe_allow_html=True)
+
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
