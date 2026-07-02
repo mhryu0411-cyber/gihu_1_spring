@@ -15,12 +15,14 @@ if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 12
 if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── CSS (타이틀 짤림 방지, 범례 스타일 등) ───
+# ─── CSS (착시효과 및 그라데이션 디자인) ───
 st.markdown("""
 <style>
     .block-container { padding-top: 1rem; }
-    div[data-testid="stSidebar"] > div:first-child {
-        background: linear-gradient(180deg, #FFF0F5, #FFFFFF);
+    
+    /* 4. 은은한 핑크빛 그라데이션 사이드바 */
+    [data-testid="stSidebar"] > div:first-child {
+        background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FFFFFF 100%) !important;
     }
     
     .title-area { 
@@ -37,15 +39,28 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; line-height: 18px;
     }
     
-    /* 점 3개 팝오버 버튼을 조금 더 깔끔하게 보이게 하는 미세조정 */
-    div[data-testid="stPopover"] {
-        margin-top: -10px; 
-        margin-bottom: 15px;
+    /* 1. 착시 마법: 컬럼 안의 팝오버 버튼을 위로 끌어올려서 카드 안으로 넣기 */
+    div[data-testid="stColumn"] div[data-testid="stPopover"] {
+        margin-top: -95px; /* 위로 강제 이동 */
+        margin-bottom: 60px; /* 원래 있던 빈 공간 상쇄 */
+        display: flex;
+        justify-content: flex-end;
+        padding-right: 8px;
+        position: relative;
+        z-index: 10;
+    }
+    /* 버튼 자체를 작고 투명하게 조정 */
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #888;
+        padding: 0 5px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── DB 설정 (닉네임, 비밀번호 컬럼 추가 처리) ───
+# ─── DB 설정 ───
 def get_db():
     conn = sqlite3.connect("reports.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -79,7 +94,7 @@ def delete_report(rid):
     db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()
 
-# ─── 사이드바: 제보 폼 ───
+# ─── 사이드바: 제보 폼 & 관리자 모드 ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
     st.caption("지도를 클릭하여 위치를 선택한 뒤 아래 정보를 입력하세요.")
@@ -98,7 +113,6 @@ with st.sidebar:
     note = st.text_area("📝 메모 (선택)", placeholder="개화 정도, 날씨 등 자유롭게")
 
     if st.button("🌸 제보 등록", use_container_width=True, type="primary"):
-        # 🚨 추가된 요구사항: 2월 ~ 5월 외 날짜 블락 처리
         if bloom_date.month < 2 or bloom_date.month > 5:
             st.warning("벚꽃 개화는 2월에서 5월 범위 내에서 입력해주세요!")
         elif not st.session_state.click_lat:
@@ -112,21 +126,19 @@ with st.sidebar:
             st.toast("🌸 제보가 등록되었습니다!")
             st.rerun()
 
-# ─── 메인 상단: 타이틀 및 관리자 모드 ───
-t_col1, t_col2 = st.columns([0.95, 0.05])
-with t_col1:
-    st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
-with t_col2:
-    st.write("") 
-    with st.popover("⋮", help="관리자 메뉴"):
-        st.markdown("**🛠️ 관리자 모드**")
+    # 3. 관리자 모드 메뉴를 사이드바로 이동
+    st.divider()
+    with st.expander("🛠️ 관리자 메뉴"):
         admin_pw = st.text_input("비밀번호", type="password", key="admin_pw", placeholder="관리자 암호")
         if admin_pw == "저녁먹쟈":
             st.session_state.is_admin = True
-            st.success("인증 완료!")
+            st.success("인증 완료! 강제 삭제가 활성화됩니다.")
         elif admin_pw:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
+
+# ─── 메인 상단: 타이틀 ───
+st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
 
 # ─── 메인: 지도 영역 ───
 m = folium.Map(
@@ -185,14 +197,20 @@ if st.session_state.click_lat:
         icon=folium.DivIcon(html='<div style="font-size:32px">📌</div>', icon_size=(32, 32), icon_anchor=(16, 16))
     ).add_to(m)
 
-recent_date_str = today.strftime("%Y-%m-%d")
-past_date_str = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+# 2. 동적 범례: DB에 있는 실제 데이터 기준 날짜 산출
+if date_coords:
+    sorted_dates = sorted(list(date_coords.keys()))
+    recent_date_str = sorted_dates[-1]  # 가장 최근 제보 날짜
+    past_date_str = sorted_dates[0] if len(sorted_dates) > 1 else "이전" # 가장 오래된 제보 날짜
+else:
+    recent_date_str = "제보 없음"
+    past_date_str = "제보 없음"
 
 legend_html = f'''
 <div class="map-legend" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
     <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; font-weight: bold; color: #555; height: 100px; text-align: right;">
         <span>🌸 {recent_date_str} (최근)</span>
-        <span>{past_date_str} 이전</span>
+        <span>{past_date_str}</span>
     </div>
     <div style="background: linear-gradient(to bottom, #FF1493, #FFB6C1); width: 14px; height: 100px; border-radius: 7px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);"></div>
 </div>
@@ -215,7 +233,7 @@ if map_data:
             st.session_state.click_lng = lng
             st.rerun()
 
-# ─── 메인 하단: 제보 목록 영역 (이전 스타일 롤백) ───
+# ─── 메인 하단: 제보 목록 영역 ───
 st.markdown("---")
 st.markdown("### 📋 최근 제보 내역")
 
@@ -245,18 +263,18 @@ else:
                 location_title = r['location_name'] if r['location_name'] else '제보 위치'
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
-                # 다시 롤백된 예전 스타일 HTML (여백과 비율 최적화)
+                # 예전 스타일의 HTML 카드 렌더링
                 st.markdown(
-                    f'<div style="border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
-                    f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333;">🌸 {location_title}</h4>'
+                    f'<div style="height: 90px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
+                    f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; width: 85%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🌸 {location_title}</h4>'
                     f'<p style="margin: 2px 0; font-size: 12px; color: #666;">👤 {nickname_text} | 📅 {r["bloom_date"]}</p>'
                     f'<p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 4px 0 0; font-size: 12px; color: #666;">📝 {note_content}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
                 
-                # 깔끔하게 '⋮' 만 남긴 관리/삭제 버튼 
-                with st.popover("⋮", help="수정/삭제 메뉴"):
+                # CSS 마법을 통해 위 HTML 카드 우측 상단으로 빨려 들어갈 팝오버
+                with st.popover("⋮"):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
                         if st.button("🗑️ 강제 삭제", key=f"del_admin_{r['id']}", type="primary", use_container_width=True):
