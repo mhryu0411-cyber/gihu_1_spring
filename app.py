@@ -13,6 +13,22 @@ hide_style = """
             """
 st.markdown(hide_style, unsafe_allow_html=True)
 
+hide_style = """
+            <style>
+            /* 1. 상단 Fork, GitHub 헤더 바 숨기기 */
+            [data-testid="stHeader"] {visibility: hidden;} 
+            
+            /* 2. 하단 기본 푸터 숨기기 */
+            footer {visibility: hidden;} 
+            
+            /* 3. 우측 하단 'Hosted with Streamlit' 배지 완전히 제거 */
+            .viewerBadge {display: none !important;}
+            [data-testid="stViewerBadge"] {display: none !important;}
+            div[class^="viewerBadge"] {display: none !important;}
+            </style>
+            """
+st.markdown(hide_style, unsafe_allow_html=True)
+
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
