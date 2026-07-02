@@ -93,12 +93,14 @@ def get_db():
     )""")
     try:
         conn.execute("ALTER TABLE reports ADD COLUMN nickname TEXT DEFAULT '익명'")
+    except: pass
+    try:
         conn.execute("ALTER TABLE reports ADD COLUMN password TEXT DEFAULT ''")
-        # 최근 제보 내역 Title 개편(4번)을 위해 시군구명을 저장할 컬럼 추가
+    except: pass
+    try:
         conn.execute("ALTER TABLE reports ADD COLUMN region_title TEXT DEFAULT ''")
-        conn.commit()
-    except:
-        pass
+    except: pass
+    conn.commit()
     return conn
 
 db = get_db()
@@ -121,7 +123,7 @@ with st.sidebar:
     st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    # (2번) 사용자가 지역을 클릭하면 왼쪽 사이드바 상단에 정보 노출
+    # 사용자가 지역을 클릭하면 왼쪽 사이드바 상단에 정보 노출
     if st.session_state.click_lat and st.session_state.selected_region:
         st.markdown(f'<div class="welcome-dong">📍 여기는 {st.session_state.selected_region}이네요~ 🌸</div>', unsafe_allow_html=True)
     else:
@@ -130,7 +132,7 @@ with st.sidebar:
     nickname = st.text_input("👤 작성자 (닉네임)", placeholder="예: 벚꽃헌터")
     password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 삭제 시 필요")
     
-    # (3번) 장소명을 -> '세부 장소'로 변경
+    # 장소명 -> '세부 장소'로 명칭 전면 수정 완료
     loc_name = st.text_input("세부 장소", placeholder="예: 윤중로 벚꽃길, 오거리 앞 공원")
     bloom_date = st.date_input("📅 개화 확인 날짜", value=date.today())
     note = st.text_area("📝 메모 (선택)", placeholder="개화 정도, 날씨 등 자유롭게")
@@ -143,7 +145,6 @@ with st.sidebar:
         elif not nickname or not password:
             st.warning("닉네임과 비밀번호를 반드시 입력해주세요.")
         else:
-            # 제보 저장 시 클릭된 시군구 이름(selected_region)을 함께 넘겨 하단 카드에 바인딩
             add_report(
                 st.session_state.click_lat, 
                 st.session_state.click_lng, 
@@ -180,7 +181,7 @@ m = folium.Map(
     tiles="CartoDB positron"
 )
 
-# 🗺️ (2번) 클릭 시 핀 마커 대신 구역을 직접 색칠하여 고정하는 레이어 로직
+# 🗺️ 클릭 시 구역을 직접 색칠하여 고정하는 레이어 로직
 if geo_data:
     try:
         def style_map(feature):
@@ -189,7 +190,6 @@ if geo_data:
             sigungu = props.get("SIGUNGU_NM", "")
             current_feature_name = f"{sido} {sigungu}".strip()
             
-            # 현재 세션에 저장된 선택 지역과 동일한 구역이면 진한 핑크색으로 색칠 고정
             if st.session_state.selected_region and current_feature_name == st.session_state.selected_region:
                 return {
                     'fillColor': '#FF69B4',  
@@ -197,7 +197,6 @@ if geo_data:
                     'weight': 2.5,           
                     'fillOpacity': 0.55      
                 }
-            # 일반 상태 스타일
             return {
                 'fillColor': '#FFECEF',  
                 'color': '#FF99AA',      
@@ -234,9 +233,18 @@ reports = get_reports()
 today = date.today()
 date_coords = defaultdict(list)
 
-for r in reports:
+for row in reports:
+    # 🛠️ IndexError 핵심 방어 코드: sqlite3.Row 객체를 안정적인 일반 딕셔너리로 다룹니다.
+    r = dict(row)
+    r_lat, r_lng = r.get("lat"), r.get("lng")
+    r_bloom_date = r.get("bloom_date", str(today))
+    r_loc_name = r.get("location_name", "제보 위치")
+    r_nickname = r.get("nickname", "익명")
+    r_note = r.get("note", "")
+    r_region_title = r.get("region_title", "")
+    
     try:
-        b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
+        b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
         days_diff = (today - b_date).days
     except:
         days_diff = 999
@@ -244,18 +252,20 @@ for r in reports:
     shadow_color = "drop-shadow(0 0 6px #E0A8BB)" if days_diff <= 7 else "drop-shadow(0 2px 3px rgba(0,0,0,.3))"
     flower_opacity = "1.0" if days_diff <= 7 else "0.6"
     
-    # 각 제보 위치 마커
+    # 예전 데이터 구제용 타이틀 설정 (region_title이 없으면 세부 장소명 활용)
+    marker_title = r_region_title if r_region_title else r_loc_name
+    
     folium.Marker(
-        [r["lat"], r["lng"]],
-        popup=folium.Popup(f"<b>{r['region_title'] or '제보 위치'}</b><br>📍 {r['location_name'] or '상세 주소 없음'}<br>👤 {r['nickname']}<br>📅 {r['bloom_date']}<br>{r['note'] or ''}", max_width=250),
+        [r_lat, r_lng],
+        popup=folium.Popup(f"<b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}", max_width=250),
         icon=folium.DivIcon(
             html=f'<div style="font-size:28px; filter:{shadow_color}; opacity:{flower_opacity};">🌸</div>',
             icon_size=(28, 28), icon_anchor=(14, 14)
         )
     ).add_to(m)
-    date_coords[r["bloom_date"]].append([r["lat"], r["lng"]])
+    date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# (1번) 개화 선 채도 다운 및 톤 조절 완료
+# 선 색상 채도 다운 및 인디핑크 계열 최적화 완료
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
         try:
@@ -263,7 +273,6 @@ for b_date, coords in date_coords.items():
             diff = (today - dt).days
         except:
             diff = 999
-        # 기존보다 훨씬 차분하고 부드러운 인디핑크/로즈 계열로 변경
         line_color = "#E0A8BB" if diff <= 7 else "#ECC1CE"
         folium.PolyLine(locations=coords, color=line_color, weight=2.2, dash_array='5, 5', opacity=0.75).add_to(m)
 
@@ -275,7 +284,6 @@ if date_coords:
 else:
     recent_date_str, past_date_str = "제보 없음", "제보 없음"
 
-# 범례 그라데이션 색상도 변경된 선 색상에 맞춰 톤다운
 legend_html = f'''
 <div class="map-legend" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
     <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; font-weight: bold; color: #555; height: 100px; text-align: right;">
@@ -327,28 +335,37 @@ else:
     cols_per_row = 4
     for i in range(0, len(reports), cols_per_row):
         cols = st.columns(cols_per_row)
-        for j, r in enumerate(reports[i:i+cols_per_row]):
+        for j, row in enumerate(reports[i:i+cols_per_row]):
             with cols[j]:
+                # 🛠️ 하단 목록 렌더링 시에도 IndexError 전면 차단 처리
+                r = dict(row)
+                r_id = r.get("id")
+                r_loc_name = r.get("location_name", "제보 위치")
+                r_bloom_date = r.get("bloom_date", "")
+                r_note = r.get("note", "")
+                r_nickname = r.get("nickname", "익명")
+                r_password = r.get("password", "")
+                r_region_title = r.get("region_title", "")
+                
                 try:
-                    b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
+                    b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
                     days_diff = (today - b_date).days
                 except:
                     days_diff = 999
                 
                 card_border, card_bg = ("#E0A8BB", "#FFE4E1") if days_diff <= 7 else ("#ECC1CE", "#FFF5F7")
-                note_content = r['note'] if r['note'] else '메모 없음'
+                note_content = r_note if r_note else '메모 없음'
                 
-                # (4번) Title을 장소명이 아니라 '시군구 이름(region_title)'으로 매칭
-                # 만약 기존 데이터에 시군구 정보가 없으면 예외 방지용 기본값 처리
-                card_title = r['region_title'] if r['region_title'] else (r['location_name'] if r['location_name'] else '제보 위치')
-                sub_location = f"📍 {r['location_name']}" if r['region_title'] and r['location_name'] else ""
-                nickname_text = r['nickname'] if r['nickname'] else '익명'
+                # Title을 사용자가 입력한 세부장소가 아닌 '시군구 이름(region_title)'으로 바인딩 완료
+                card_title = r_region_title if r_region_title else r_loc_name
+                sub_location = f"📍 {r_loc_name}" if r_region_title and r_loc_name else ""
+                nickname_text = r_nickname if r_nickname else '익명'
                 
                 st.markdown(
                     f'<div style="height: 140px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
                     f'<h4 style="margin: 0 0 4px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
                     f'<p style="margin: 0; font-size: 11px; color: #FF1493; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                    f'<p style="margin: 3px 0; font-size: 11px; color: #777;">👤 {nickname_text} | 📅 {r["bloom_date"]}</p>'
+                    f'<p style="margin: 3px 0; font-size: 11px; color: #777;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
                     f'<p style="margin: 4px 0 0; font-size: 12px; color: #555; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">📝 {note_content}</p>'
                     f'</div>',
                     unsafe_allow_html=True
@@ -357,16 +374,16 @@ else:
                 with st.popover("⋮"):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
-                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r['id']}", type="primary", use_container_width=True):
-                            delete_report(r['id'])
+                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
+                            delete_report(r_id)
                             st.toast("관리자 권한으로 삭제되었습니다.")
                             st.rerun()
                     else:
                         st.caption("작성 시 입력한 비밀번호")
-                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r['id']}", label_visibility="collapsed")
-                        if st.button("삭제하기", key=f"del_{r['id']}", type="primary", use_container_width=True):
-                            if r['password'] and del_pw == r['password']:
-                                delete_report(r['id'])
+                        del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
+                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
+                            if r_password and del_pw == r_password:
+                                delete_report(r_id)
                                 st.success("삭제되었습니다!")
                                 st.rerun()
                             else:
