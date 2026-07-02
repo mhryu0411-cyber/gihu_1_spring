@@ -70,13 +70,14 @@ st.markdown("""
     .welcome-dong {
         background-color: #FFF0F2;
         border: 1px dashed #FFB6C1;
-        padding: 12px;
+        padding: 15px 12px;
         border-radius: 8px;
         text-align: center;
         font-weight: bold;
         color: #D2143A;
         margin-bottom: 15px;
-        font-size: 15px;
+        font-size: 14px;
+        line-height: 1.5;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -123,16 +124,23 @@ with st.sidebar:
     st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    # 사용자가 지역을 클릭하면 왼쪽 사이드바 상단에 정보 노출
+    # 3) 사용자가 지역을 클릭하면 SIDO_NM과 SIGUNGU_NM을 왼쪽 사이드바 상단에 명확하게 노출
     if st.session_state.click_lat and st.session_state.selected_region:
-        st.markdown(f'<div class="welcome-dong">📍 여기는 {st.session_state.selected_region}이네요~ 🌸</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'''
+            <div class="welcome-dong">
+                <span style="color: #777; font-size: 13px;">📍 현재 선택된 지역</span><br>
+                <span style="font-size: 18px; color: #E8326D; font-weight: 800;">{st.session_state.selected_region}</span>
+            </div>
+            ''', 
+            unsafe_allow_html=True
+        )
     else:
         st.info("📍 지도에서 시군구 구역을 클릭하세요")
 
     nickname = st.text_input("👤 작성자 (닉네임)", placeholder="예: 벚꽃헌터")
     password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 삭제 시 필요")
     
-    # 장소명 -> '세부 장소'로 명칭 전면 수정 완료
     loc_name = st.text_input("세부 장소", placeholder="예: 윤중로 벚꽃길, 오거리 앞 공원")
     bloom_date = st.date_input("📅 개화 확인 날짜", value=date.today())
     note = st.text_area("📝 메모 (선택)", placeholder="개화 정도, 날씨 등 자유롭게")
@@ -190,6 +198,7 @@ if geo_data:
             sigungu = props.get("SIGUNGU_NM", "")
             current_feature_name = f"{sido} {sigungu}".strip()
             
+            # 2) 선택된 경계 색칠 방식 적용
             if st.session_state.selected_region and current_feature_name == st.session_state.selected_region:
                 return {
                     'fillColor': '#FF69B4',  
@@ -197,11 +206,12 @@ if geo_data:
                     'weight': 2.5,           
                     'fillOpacity': 0.55      
                 }
+            # 1) 기본 Geojson line 컬러를 덜 튀게 수정 (연한 회색/핑크 톤) 및 투명도 조절
             return {
-                'fillColor': '#FFECEF',  
-                'color': '#FF99AA',      
-                'weight': 1.2,           
-                'fillOpacity': 0.25      
+                'fillColor': '#FFFFFF',  
+                'color': '#D3C5C8',      
+                'weight': 1.0,           
+                'fillOpacity': 0.1       
             }
 
         folium.GeoJson(
@@ -225,7 +235,7 @@ if geo_data:
         folium.GeoJson(
             geo_data,
             name="시군구 경계 (안전 모드)",
-            style_function=lambda x: {'fillColor': '#FFECEF', 'color': '#FF99AA', 'weight': 1.2, 'fillOpacity': 0.25}
+            style_function=lambda x: {'fillColor': '#FFFFFF', 'color': '#D3C5C8', 'weight': 1.0, 'fillOpacity': 0.1}
         ).add_to(m)
 
 # 마커 및 개화전선 드로잉 로직
@@ -234,7 +244,6 @@ today = date.today()
 date_coords = defaultdict(list)
 
 for row in reports:
-    # 🛠️ IndexError 핵심 방어 코드: sqlite3.Row 객체를 안정적인 일반 딕셔너리로 다룹니다.
     r = dict(row)
     r_lat, r_lng = r.get("lat"), r.get("lng")
     r_bloom_date = r.get("bloom_date", str(today))
@@ -252,7 +261,6 @@ for row in reports:
     shadow_color = "drop-shadow(0 0 6px #E0A8BB)" if days_diff <= 7 else "drop-shadow(0 2px 3px rgba(0,0,0,.3))"
     flower_opacity = "1.0" if days_diff <= 7 else "0.6"
     
-    # 예전 데이터 구제용 타이틀 설정 (region_title이 없으면 세부 장소명 활용)
     marker_title = r_region_title if r_region_title else r_loc_name
     
     folium.Marker(
@@ -265,7 +273,6 @@ for row in reports:
     ).add_to(m)
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# 선 색상 채도 다운 및 인디핑크 계열 최적화 완료
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
         try:
@@ -301,28 +308,35 @@ map_data = st_folium(
     width=None, 
     height=600, 
     key="cherry_blossom_map",
-    returned_objects=["last_clicked", "last_object_clicked"] 
+    returned_objects=["last_clicked", "last_object_clicked", "last_active_drawing"] 
 )
 
 # 데이터 추출 및 세션 저장 데이터 검증
-if map_data and map_data.get("last_clicked"):
-    lat = map_data["last_clicked"]["lat"]
-    lng = map_data["last_clicked"]["lng"]
+if map_data:
+    lat, lng = None, None
+    if map_data.get("last_clicked"):
+        lat = map_data["last_clicked"]["lat"]
+        lng = map_data["last_clicked"]["lng"]
     
-    clicked_feature = map_data.get("last_object_clicked")
+    # st_folium 버전에 따라 폴리곤 클릭 정보를 가져오는 키가 다를 수 있어 둘 다 체크
+    clicked_feature = map_data.get("last_object_clicked") or map_data.get("last_active_drawing")
     region_name = ""
     
     if clicked_feature:
         props = clicked_feature.get("properties", {})
         sido = props.get("SIDO_NM", "")
         sigungu = props.get("SIGUNGU_NM", "")
-        region_name = f"{sido} {sigungu}".strip()
+        if sido and sigungu:
+            region_name = f"{sido} {sigungu}".strip()
     
-    if 33 <= lat <= 39 and 124 <= lng <= 132:
+    # 올바른 좌표 내 클릭 시 상태 업데이트 후 리렌더링
+    if lat and lng and (33 <= lat <= 39 and 124 <= lng <= 132):
         if st.session_state.click_lat != lat or st.session_state.click_lng != lng or st.session_state.selected_region != region_name:
             st.session_state.click_lat = lat
             st.session_state.click_lng = lng
-            st.session_state.selected_region = region_name
+            # 폴리곤 외 영역 클릭을 대비해 region_name 유지 (있는 경우만 업데이트)
+            if region_name:
+                st.session_state.selected_region = region_name
             st.rerun()
                     
 # ─── 제보 목록 리스트 ───
@@ -337,7 +351,6 @@ else:
         cols = st.columns(cols_per_row)
         for j, row in enumerate(reports[i:i+cols_per_row]):
             with cols[j]:
-                # 🛠️ 하단 목록 렌더링 시에도 IndexError 전면 차단 처리
                 r = dict(row)
                 r_id = r.get("id")
                 r_loc_name = r.get("location_name", "제보 위치")
@@ -356,7 +369,6 @@ else:
                 card_border, card_bg = ("#E0A8BB", "#FFE4E1") if days_diff <= 7 else ("#ECC1CE", "#FFF5F7")
                 note_content = r_note if r_note else '메모 없음'
                 
-                # Title을 사용자가 입력한 세부장소가 아닌 '시군구 이름(region_title)'으로 바인딩 완료
                 card_title = r_region_title if r_region_title else r_loc_name
                 sub_location = f"📍 {r_loc_name}" if r_region_title and r_loc_name else ""
                 nickname_text = r_nickname if r_nickname else '익명'
