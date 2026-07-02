@@ -6,7 +6,7 @@ import json
 from datetime import date, datetime
 
 # ─── 페이지 설정 ───
-st.set_page_config(page_title="🌸 벚꽃 개화 제보", layout="wide", page_icon="🌸")
+st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
 # ─── CSS ───
 st.markdown("""
