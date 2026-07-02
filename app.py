@@ -8,27 +8,24 @@ from datetime import date, datetime, timedelta
 # ─── 숨기기 설정 ───
 hide_style = """
             <style>
-            [data-testid="stHeader"] {visibility: hidden;} /* 상단 Fork, 깃허브 바 숨기기 */
-            footer {visibility: hidden;} /* 하단 로고 숨기기 */
+            [data-testid="stHeader"] {visibility: hidden;} 
+            footer {visibility: hidden;}
             </style>
             """
 st.markdown(hide_style, unsafe_allow_html=True)
 
 hide_style = """
             <style>
-            /* 1. 상단 헤더 바 숨기기 */
             [data-testid="stHeader"] {
                 visibility: hidden !important;
                 display: none !important;
             }
             
-            /* 2. 하단 푸터 숨기기 */
             footer {
                 visibility: hidden !important;
                 display: none !important;
             }
             
-            /* 3. 우측 하단 배지, 아이콘, 빨간 박스 컨테이너까지 통째로 박멸 */
             [data-testid="stViewerBadge"], 
             .viewerBadge,
             div[class*="viewerBadge"],
