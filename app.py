@@ -143,5 +143,37 @@ if map_data and map_data.get("last_clicked"):
     lng = map_data["last_clicked"]["lng"]
     if 33 <= lat <= 39 and 124 <= lng <= 132:
         st.session_state.click_lat = lat
+
+
+# ─── 메인 하단: 제보 목록 추가 ───
+st.markdown("---")
+st.markdown("### 📋 최근 제보 내역")
+reports = get_reports()
+
+if not reports:
+    st.caption("아직 제보가 없습니다.")
+else:
+    # 카드가 가로로 유연하게 배치되도록 HTML 컨테이너 생성
+    report_html = '<div class="report-container">'
+    for r in reports:
+        report_html += f"""
+        <div class="report-card">
+            <h4>🌸 {r['location_name'] or '제보 위치'}</h4>
+            <p>📅 {r['bloom_date']}</p>
+            {f'<p>📝 {r["note"]}</p>' if r['note'] else ''}
+            <p style="font-size:11px;color:#aaa">{r['created_at'] or ''}</p>
+        </div>
+        """
+    report_html += '</div>'
+    st.markdown(report_html, unsafe_allow_html=True)
+
+# (클릭 데이터 세션 처리 부분 생략)
+if map_data and map_data.get("last_clicked"):
+    lat = map_data["last_clicked"]["lat"]
+    lng = map_data["last_clicked"]["lng"]
+    if 33 <= lat <= 39 and 124 <= lng <= 132:
+        st.session_state.click_lat = lat
+        st.session_state.click_lng = lng
+        st.rerun()
         st.session_state.click_lng = lng
         st.rerun()
