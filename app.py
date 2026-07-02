@@ -54,7 +54,7 @@ st.markdown("""
 <style>
     .block-container { padding-top: 1rem; }
     
-    /* 2) 🕶️ 메인 화면 배경: 눈이 편안하고 부드러운 벚꽃 힌트 오프화이트 컬러 */
+    /* 🕶️ 메인 화면 배경: 눈이 편안하고 부드러운 벚꽃 힌트 오프화이트 컬러 */
     .stApp {
         background-color: #FAF5F6 !important;
     }
@@ -78,7 +78,7 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; line-height: 18px;
     }
     
-    /* 1) 🎯 점점점(⋮) 버튼을 카드의 무조건 '최우측 상단'으로 강제 고정 */
+    /* 🎯 점점점(⋮) 버튼을 카드의 무조건 '최우측 상단'으로 강제 고정 */
     div[data-testid="stColumn"] {
         position: relative !important;
     }
@@ -266,21 +266,20 @@ legend_html = f'''
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
 
-map_data = st_folium(m, width=None, height=600, returned_objects=["last_clicked", "center", "zoom"])
+# 🛠️ 버벅임 해결 핵심수정: center와 zoom을 빼고 오직 "last_clicked"만 추적하게 최적화하여 렉을 완전히 없앰
+map_data = st_folium(m, width=None, height=600, returned_objects=["last_clicked"])
 
-if map_data:
-    if map_data.get("center"):
-        st.session_state.map_center = [map_data["center"]["lat"], map_data["center"]["lng"]]
-    if map_data.get("zoom"):
-        st.session_state.map_zoom = map_data["zoom"]
-
-    if map_data.get("last_clicked"):
-        lat = map_data["last_clicked"]["lat"]
-        lng = map_data["last_clicked"]["lng"]
-        if 33 <= lat <= 39 and 124 <= lng <= 132:
-            st.session_state.click_lat = lat
-            st.session_state.click_lng = lng
-            st.rerun()
+# 사용자가 지도를 '클릭'했을 때만 핀을 꽂기 위해 데이터 처리 실행
+if map_data and map_data.get("last_clicked"):
+    lat = map_data["last_clicked"]["lat"]
+    lng = map_data["last_clicked"]["lng"]
+    # 대한민국 영토 반경 내 클릭인 경우에만 작동
+    if 33 <= lat <= 39 and 124 <= lng <= 132:
+        st.session_state.click_lat = lat
+        st.session_state.click_lng = lng
+        # 클릭 시점에 현재 맵 상태를 고정해두어 부드럽게 연동되도록 유도
+        st.session_state.map_center = [lat, lng]
+        st.rerun()
 
 # ─── 메인 하단: 제보 목록 영역 ───
 st.markdown("---")
@@ -311,7 +310,7 @@ else:
                 location_title = r['location_name'] if r['location_name'] else '제보 위치'
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
-                # 🛠️ 카드 높이를 120px로 넉넉하게 확장 + 우측 패딩을 40px 주어 글자가 생략기호(⋮) 절대 침범 못하게 조치
+                # 카드 높이를 120px로 넉넉하게 확장 + 우측 패딩을 40px 주어 글자가 생략기호(⋮) 절대 침범 못하게 조치
                 st.markdown(
                     f'<div style="height: 120px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
                     f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {location_title}</h4>'
