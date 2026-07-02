@@ -197,7 +197,7 @@ def get_reports():
     return db.execute("SELECT * FROM reports ORDER BY created_at DESC").fetchall()
 
 def delete_report(rid):
-    db.execute("DELETE WHERE id=?", (rid,))
+    db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()
 
 # ─── 사이드바 영역 ───
