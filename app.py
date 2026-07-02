@@ -61,13 +61,28 @@ def find_region_by_point(lat, lng, geojson):
                         return region_name
     return ""
 
-# ─── UI 숨김 설정 ───
+# ─── [수정] 사이드바 화살표 버튼 생존형 UI 숨김 스타일 ───
 final_hide_style = """
             <style>
-            [data-testid="stHeader"] { visibility: hidden !important; display: none !important; }
+            /* 헤더 자체는 투명하게 만들되 완전히 없애지 않아 버튼이 누락되지 않도록 조절 */
+            [data-testid="stHeader"] { 
+                background-color: transparent !important; 
+                background: none !important;
+            }
+            /* 헤더 우측의 지저분한 배지나 메뉴 아이콘들만 정밀 타격하여 제거 */
+            [data-testid="stHeader"] > div:first-child > div:nth-child(2) {
+                display: none !important;
+                visibility: hidden !important;
+            }
             footer { visibility: hidden !important; display: none !important; }
             [data-testid="stViewerBadge"], .viewerBadge, div[class*="viewerBadge"] {
                 display: none !important; visibility: hidden !important;
+            }
+            /* 사이드바가 닫혔을 때 나타나는 둥근 화살표 버튼이 잘 보이도록 스타일 강조 */
+            [data-testid="stSidebarCollapseButton"] button {
+                background-color: #FFE4E1 !important;
+                border: 1px solid #FFB6C1 !important;
+                box-shadow: 0px 2px 5px rgba(0,0,0,0.15) !important;
             }
             </style>
             """
@@ -271,7 +286,6 @@ main_col_map, main_col_cards = st.columns([7.5, 2.5])
 
 # ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
 with main_col_map:
-    # [수정] 타이틀 영역을 지도 위의 공간(바로 이 자리)으로 한정하여 밀착 배치
     st.markdown(
         '''
         <div class="title-area" style="font-family: 'Nanum Gothic', sans-serif;">
@@ -352,7 +366,7 @@ with main_col_map:
         line_color = lines[idx]
         marker_title = r_region_title if r_region_title else "지역 미상"
         
-        # 히트맵(Glow) 효과 마커 배치
+        # 히트맵(Glow) 마커 배치
         folium.CircleMarker(
             location=[r_lat, r_lng], radius=22, color=None, fill=True, fill_color=fill_color, fill_opacity=0.15
         ).add_to(m)
@@ -394,9 +408,7 @@ with main_col_map:
         target_line = lines[idx]
         
         if len(coords) >= 2:
-            # 등개화일선 강조를 위한 흰색 글로우 라인
             folium.PolyLine(locations=coords, color="#ffffff", weight=7.0, opacity=0.6).add_to(m)
-            # 메인 연결선
             folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.85).add_to(m)
             
             mid_lat = sum(c[0] for c in coords) / len(coords)
@@ -405,7 +417,6 @@ with main_col_map:
         elif len(coords) == 1:
             text_loc = coords[0]
             
-        # [수정] 너무 투명하지 않도록 투명도를 미세 조정 (opacity: 0.65 -> 0.78)
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
@@ -451,7 +462,6 @@ with main_col_map:
 
 # ─── [우측 구역] 최근 제보 내역 카드(Cards List) 영역 ───
 with main_col_cards:
-    # [수정] 상단 타이틀이 지도로 올라가서 생긴 빈 공간 덕분에 최상단으로 딱 맞아 정렬됩니다.
     st.markdown("### 📋 최근 제보 내역")
     
     if not reports:
