@@ -141,10 +141,13 @@ if st.session_state.click_lat:
 
 # 3) 지도 내 우측 하단 범례 추가
 legend_html = '''
-<div class="map-legend">
-    <b>🌸 개화 시기 기준</b><br>
-    <span class="legend-color" style="background: #FF1493; box-shadow: 0 0 5px #FF1493;"></span> 최근 1주일 이내<br>
-    <span class="legend-color" style="background: #FFB6C1; opacity: 0.6;"></span> 1주일 이전 제보
+<div class="map-legend" style="width: 160px; padding: 12px; background: rgba(255,255,255,0.9);">
+    <b style="display: block; margin-bottom: 8px; text-align: center;">🌸 개화 시기 히트맵</b>
+    <div style="background: linear-gradient(to right, #FF1493, #FFB6C1); height: 12px; border-radius: 6px; width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-top: 5px; font-weight: bold;">
+        <span>최근 (진함)</span>
+        <span>과거 (연함)</span>
+    </div>
 </div>
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
@@ -197,13 +200,13 @@ else:
         created_time = r['created_at'][:16] if r['created_at'] else ''
         
         # 내부 스타일 태그 구조를 단순 문자열 결합으로 파싱 버그 원천 차단
-        report_html += f"""
-        <div class="report-card" style="border-left: 4px solid {card_border}; background-color: {card_bg};">
-            <h4>🌸 {location_title}</h4>
-            <p>📅 {r['bloom_date']}</p>
-            <p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 0;">📝 {note_content}</p>
-            <p style="font-size:11px; color:#aaa; margin-top: 4px; margin-bottom: 0;">⏱️ {created_time}</p>
-        </div>
-        """
+        report_html += (
+            f'<div class="report-card" style="border-left: 4px solid {card_border}; background-color: {card_bg};">'
+            f'<h4 style="margin: 0 0 4px; font-size: 14px; color: #333;">🌸 {location_title}</h4>'
+            f'<p style="margin: 2px 0; font-size: 12px; color: #666;">📅 {r["bloom_date"]}</p>'
+            f'<p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 0; font-size: 12px; color: #666;">📝 {note_content}</p>'
+            f'<p style="font-size:11px; color:#aaa; margin-top: 4px; margin-bottom: 0;">⏱️ {created_time}</p>'
+            f'</div>'
+        )
     report_html += '</div>'
     st.markdown(report_html, unsafe_allow_html=True)
