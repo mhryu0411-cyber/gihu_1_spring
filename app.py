@@ -13,7 +13,7 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 @st.cache_data(show_spinner="행정동 경계 데이터를 불러오는 중...")
 def load_geojson():
     try:
-        with open("Dong_2.geojson", encoding="utf-8") as f:
+        with open("Dong_3.geojson", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         st.error(f"⚠️ GeoJSON 로드 실패: {e}")
