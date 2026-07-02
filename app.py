@@ -79,7 +79,7 @@ if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "selected_region" not in st.session_state: st.session_state.selected_region = ""
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── [수정 요청사항] 나눔고딕 웹폰트 로드 및 전역 스타일 강제 지정 ───
+# ─── CSS 스타일 (나눔고딕 & 점점점 메뉴 화살표 강제 제거) ───
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
@@ -95,14 +95,21 @@ st.markdown("""
         background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FAF5F6 100%) !important;
     }
     .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.5; }
+    
+    /* 제보 내역 카드 우측 상단 팝오버 위치 세팅 */
     div[data-testid="stColumn"] { position: relative !important; }
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
         position: absolute !important; top: 12px !important; right: 18px !important;
         left: auto !important; z-index: 99 !important; margin: 0 !important; padding: 0 !important;
     }
+    
+    /* [수정 요청사항] 화살표(expand_more 아이콘)을 완전히 숨겨서 '점점점'만 남기기 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button {
         background-color: transparent !important; border: none !important;
         box-shadow: none !important; color: #888 !important; padding: 0 4px !important; font-weight: bold !important;
+    }
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button svg {
+        display: none !important; /* 화살표 아이콘 완전 삭제 */
     }
     div[data-testid="stColumn"] div[data-testid="stPopover"] button:hover { color: #FF1493 !important; }
 </style>
@@ -258,7 +265,7 @@ else:
     min_date = date.today()
     max_date = date.today()
 
-# 공통 팔레트 색상 정의 (0번이 가장 빠름/진함 -> 뒤로 갈수록 늦음/연함)
+# 공통 팔레트 색상 정의
 fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
 lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
 
@@ -274,7 +281,6 @@ for row in reports:
     r_note = r.get("note", "")
     r_region_title = r.get("region_title", "")
     
-    # 일자가 빠를수록 더 진한 색 배정 로직
     try:
         curr_d = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
         if min_date == max_date:
@@ -310,7 +316,7 @@ for row in reports:
     
     date_coords[r_bloom_date].append([r_lat, r_lng])
 
-# ─── [수정 요청사항] 선 색상과 날짜 칸 색상도 동그라미 색상에 완벽 연동 ───
+# ─── 선 및 날짜 칸 가시화 연동 ───
 for b_date, coords in date_coords.items():
     try:
         curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
@@ -323,11 +329,10 @@ for b_date, coords in date_coords.items():
         ratio = 0.0
         
     idx = int(ratio * (len(fills) - 1))
-    target_fill = fills[idx]   # 날짜 칸의 배경색으로 사용
-    target_line = lines[idx]   # 등치선의 색상 및 배지 테두리로 사용
+    target_fill = fills[idx]
+    target_line = lines[idx]
     
     if len(coords) >= 2:
-        # 선 색상을 해당 날짜의 고유 연동 테두리 색상(target_line)으로 적용
         folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.9).add_to(m)
         mid_lat = sum(c[0] for c in coords) / len(coords)
         mid_lng = sum(c[1] for c in coords) / len(coords)
@@ -335,17 +340,17 @@ for b_date, coords in date_coords.items():
     elif len(coords) == 1:
         text_loc = coords[0]
         
-    # 날짜 칸 배경색(target_fill)과 테두리색(target_line) 연동 처리 완료
+    # [수정 요청사항] 지도 상의 날짜 배지 글씨 크기 상향(11px -> 13px) 및 박스 크기 최적화
     folium.map.Marker(
         text_loc,
         icon=folium.features.DivIcon(
-            icon_size=(110, 24),
-            icon_anchor=(55, 12), 
-            html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 11px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 2px 6px; border-radius: 10px; box-shadow: 0px 2px 5px rgba(0,0,0,0.3); white-space: nowrap; text-align:center; line-height:14px;">📅 {b_date}</div>'
+            icon_size=(125, 26),
+            icon_anchor=(62, 13), 
+            html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 7px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.35); white-space: nowrap; text-align:center; line-height:16px;">📅 {b_date}</div>'
         )
     ).add_to(m)
 
-# ─── [수정 요청사항] 우측 하단 범례 폰트 및 구조 확대 ───
+# ─── 우측 하단 범례 확대 버전 ───
 legend_html = f'''
 <div style="position: absolute; bottom: 30px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 16px; border-radius: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
     <div style="font-size: 14px; font-weight: 800; color: #333; margin-bottom: 10px; text-align: center;">🌸 개화 시기별 연동 색상</div>
@@ -415,7 +420,7 @@ else:
                 sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
                 nickname_text = r_nickname if r_nickname else '익명'
                 
-                # 대형 카드 스타일 및 나눔고딕 명시 적용
+                # 대형 제보 정보 카드 렌더링
                 st.markdown(
                     f'<div style="font-family: \'Nanum Gothic\', sans-serif; height: 175px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
                     f'<h4 style="margin: 0 0 6px; font-size: 17px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
@@ -426,6 +431,7 @@ else:
                     unsafe_allow_html=True
                 )
                 
+                # 상단 CSS 효과로 인해 화살표가 제거된 깔끔한 순수 점점점(⋮) 메뉴 작동
                 with st.popover("⋮"):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
