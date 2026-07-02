@@ -10,12 +10,12 @@ import os
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
-# ─── 1. GeoJSON 파일 캐싱 (SIGUNGU.geojson 절대 경로 적용) ───
+# ─── 1. GeoJSON 파일 캐싱 ───
 @st.cache_data(show_spinner="시군구 경계 데이터를 불러오는 중...")
 def load_geojson():
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "SIGUNGU.geojson") # 파일명 시군구로 변경
+        file_path = os.path.join(current_dir, "SIGUNGU.geojson")
         with open(file_path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
@@ -24,7 +24,7 @@ def load_geojson():
 
 geo_data = load_geojson()
 
-# ─── 숨기기 설정 ───
+# ─── UI 숨김 설정 ───
 final_hide_style = """
             <style>
             [data-testid="stHeader"] { visibility: hidden !important; display: none !important; }
@@ -67,7 +67,6 @@ st.markdown("""
     }
     div[data-testid="stColumn"] div[data-testid="stPopover"] button:hover { color: #FF1493 !important; }
     
-    /* 🔔 클릭 알림창 서체 꾸미기 */
     .welcome-dong {
         background-color: #FFF0F2;
         border: 1px dashed #FFB6C1;
@@ -95,6 +94,8 @@ def get_db():
     try:
         conn.execute("ALTER TABLE reports ADD COLUMN nickname TEXT DEFAULT '익명'")
         conn.execute("ALTER TABLE reports ADD COLUMN password TEXT DEFAULT ''")
+        # 최근 제보 내역 Title 개편(4번)을 위해 시군구명을 저장할 컬럼 추가
+        conn.execute("ALTER TABLE reports ADD COLUMN region_title TEXT DEFAULT ''")
         conn.commit()
     except:
         pass
@@ -102,9 +103,9 @@ def get_db():
 
 db = get_db()
 
-def add_report(lat, lng, name, bloom_date, note, nickname, password):
-    db.execute("INSERT INTO reports (lat,lng,location_name,bloom_date,note,nickname,password) VALUES (?,?,?,?,?,?,?)",
-               (lat, lng, name, bloom_date, note, nickname, password))
+def add_report(lat, lng, name, bloom_date, note, nickname, password, region_title):
+    db.execute("INSERT INTO reports (lat,lng,location_name,bloom_date,note,nickname,password,region_title) VALUES (?,?,?,?,?,?,?,?)",
+               (lat, lng, name, bloom_date, note, nickname, password, region_title))
     db.commit()
 
 def get_reports():
@@ -120,7 +121,7 @@ with st.sidebar:
     st.caption("지도에서 시군구를 클릭한 뒤 정보를 입력하세요.")
     st.divider()
 
-    # 🎯 사용자가 구역을 클릭하면 상단에 "여기는 무슨 시/군/구네요~" 멘트 띄우기
+    # (2번) 사용자가 지역을 클릭하면 왼쪽 사이드바 상단에 정보 노출
     if st.session_state.click_lat and st.session_state.selected_region:
         st.markdown(f'<div class="welcome-dong">📍 여기는 {st.session_state.selected_region}이네요~ 🌸</div>', unsafe_allow_html=True)
     else:
@@ -129,8 +130,8 @@ with st.sidebar:
     nickname = st.text_input("👤 작성자 (닉네임)", placeholder="예: 벚꽃헌터")
     password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 삭제 시 필요")
     
-    # 클릭한 동네 이름이 장소명에 자동 완성 기본값으로 들어감
-    loc_name = st.text_input("장소명", value=st.session_state.selected_region, placeholder="예: 여의도 윤중로")
+    # (3번) 장소명을 -> '세부 장소'로 변경
+    loc_name = st.text_input("세부 장소", placeholder="예: 윤중로 벚꽃길, 오거리 앞 공원")
     bloom_date = st.date_input("📅 개화 확인 날짜", value=date.today())
     note = st.text_area("📝 메모 (선택)", placeholder="개화 정도, 날씨 등 자유롭게")
 
@@ -138,11 +139,21 @@ with st.sidebar:
         if bloom_date.month < 2 or bloom_date.month > 5:
             st.warning("벚꽃 개화는 2월에서 5월 범위 내에서 입력해주세요!")
         elif not st.session_state.click_lat:
-            st.warning("지도에서 위치를 먼저 클릭해주세요.")
+            st.warning("지도에서 원하는 시군구 지역을 먼저 클릭해주세요.")
         elif not nickname or not password:
             st.warning("닉네임과 비밀번호를 반드시 입력해주세요.")
         else:
-            add_report(st.session_state.click_lat, st.session_state.click_lng, loc_name, str(bloom_date), note, nickname, password)
+            # 제보 저장 시 클릭된 시군구 이름(selected_region)을 함께 넘겨 하단 카드에 바인딩
+            add_report(
+                st.session_state.click_lat, 
+                st.session_state.click_lng, 
+                loc_name, 
+                str(bloom_date), 
+                note, 
+                nickname, 
+                password,
+                st.session_state.selected_region
+            )
             st.session_state.click_lat = None
             st.session_state.click_lng = None
             st.session_state.selected_region = ""
@@ -160,7 +171,7 @@ with st.sidebar:
             st.error("비밀번호 오류")
 
 # ─── 메인 타이틀 ───
-st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도에서 지역을 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도에서 시군구를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
 
 # ─── 메인 지도 생성 ───
 m = folium.Map(
@@ -169,26 +180,43 @@ m = folium.Map(
     tiles="CartoDB positron"
 )
 
-# 🗺️ 시군구 경계선 레이어 스타일 (요청하신 SIDO_NM, SIGUNGU_NM 필드 매칭)
+# 🗺️ (2번) 클릭 시 핀 마커 대신 구역을 직접 색칠하여 고정하는 레이어 로직
 if geo_data:
     try:
-        folium.GeoJson(
-            geo_data,
-            name="시군구 경계",
-            style_function=lambda x: {
+        def style_map(feature):
+            props = feature.get("properties", {})
+            sido = props.get("SIDO_NM", "")
+            sigungu = props.get("SIGUNGU_NM", "")
+            current_feature_name = f"{sido} {sigungu}".strip()
+            
+            # 현재 세션에 저장된 선택 지역과 동일한 구역이면 진한 핑크색으로 색칠 고정
+            if st.session_state.selected_region and current_feature_name == st.session_state.selected_region:
+                return {
+                    'fillColor': '#FF69B4',  
+                    'color': '#FF1493',      
+                    'weight': 2.5,           
+                    'fillOpacity': 0.55      
+                }
+            # 일반 상태 스타일
+            return {
                 'fillColor': '#FFECEF',  
                 'color': '#FF99AA',      
                 'weight': 1.2,           
                 'fillOpacity': 0.25      
-            },
+            }
+
+        folium.GeoJson(
+            geo_data,
+            name="시군구 경계",
+            style_function=style_map,
             highlight_function=lambda x: {
                 'fillColor': '#FF1493',  
                 'color': '#FF1493',
-                'weight': 2.5,
-                'fillOpacity': 0.45
+                'weight': 2.0,
+                'fillOpacity': 0.4
             },
             tooltip=folium.GeoJsonTooltip(
-                fields=['SIDO_NM', 'SIGUNGU_NM'], # 새로운 필드명 매칭
+                fields=['SIDO_NM', 'SIGUNGU_NM'],
                 aliases=['시/도:', '시/군/구:'],
                 localize=True,
                 sticky=True
@@ -213,12 +241,13 @@ for r in reports:
     except:
         days_diff = 999
     
-    shadow_color = "drop-shadow(0 0 6px #FF1493)" if days_diff <= 7 else "drop-shadow(0 2px 3px rgba(0,0,0,.3))"
+    shadow_color = "drop-shadow(0 0 6px #E0A8BB)" if days_diff <= 7 else "drop-shadow(0 2px 3px rgba(0,0,0,.3))"
     flower_opacity = "1.0" if days_diff <= 7 else "0.6"
     
+    # 각 제보 위치 마커
     folium.Marker(
         [r["lat"], r["lng"]],
-        popup=folium.Popup(f"<b>{r['location_name'] or '제보 위치'}</b><br>👤 {r['nickname']}<br>📅 {r['bloom_date']}<br>{r['note'] or ''}", max_width=250),
+        popup=folium.Popup(f"<b>{r['region_title'] or '제보 위치'}</b><br>📍 {r['location_name'] or '상세 주소 없음'}<br>👤 {r['nickname']}<br>📅 {r['bloom_date']}<br>{r['note'] or ''}", max_width=250),
         icon=folium.DivIcon(
             html=f'<div style="font-size:28px; filter:{shadow_color}; opacity:{flower_opacity};">🌸</div>',
             icon_size=(28, 28), icon_anchor=(14, 14)
@@ -226,6 +255,7 @@ for r in reports:
     ).add_to(m)
     date_coords[r["bloom_date"]].append([r["lat"], r["lng"]])
 
+# (1번) 개화 선 채도 다운 및 톤 조절 완료
 for b_date, coords in date_coords.items():
     if len(coords) >= 2:
         try:
@@ -233,14 +263,9 @@ for b_date, coords in date_coords.items():
             diff = (today - dt).days
         except:
             diff = 999
-        line_color = "#FF1493" if diff <= 7 else "#FFB6C1"
-        folium.PolyLine(locations=coords, color=line_color, weight=2.5, dash_array='6, 6', opacity=0.7).add_to(m)
-
-if st.session_state.click_lat:
-    folium.Marker(
-        [st.session_state.click_lat, st.session_state.click_lng],
-        icon=folium.DivIcon(html='<div style="font-size:32px">📌</div>', icon_size=(32, 32), icon_anchor=(16, 16))
-    ).add_to(m)
+        # 기존보다 훨씬 차분하고 부드러운 인디핑크/로즈 계열로 변경
+        line_color = "#E0A8BB" if diff <= 7 else "#ECC1CE"
+        folium.PolyLine(locations=coords, color=line_color, weight=2.2, dash_array='5, 5', opacity=0.75).add_to(m)
 
 # 범례 레이아웃
 if date_coords:
@@ -250,13 +275,14 @@ if date_coords:
 else:
     recent_date_str, past_date_str = "제보 없음", "제보 없음"
 
+# 범례 그라데이션 색상도 변경된 선 색상에 맞춰 톤다운
 legend_html = f'''
 <div class="map-legend" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
     <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; font-weight: bold; color: #555; height: 100px; text-align: right;">
         <span>🌸 {recent_date_str} (최근)</span>
         <span>{past_date_str}</span>
     </div>
-    <div style="background: linear-gradient(to bottom, #FF1493, #FFB6C1); width: 14px; height: 100px; border-radius: 7px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);"></div>
+    <div style="background: linear-gradient(to bottom, #E0A8BB, #ECC1CE); width: 14px; height: 100px; border-radius: 7px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);"></div>
 </div>
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
@@ -270,7 +296,7 @@ map_data = st_folium(
     returned_objects=["last_clicked", "last_object_clicked"] 
 )
 
-# ─── 🛠️ 지도로부터 데이터 연동 방식 최적화 (무한루프 & 뿌얘짐 차단) ───
+# 데이터 추출 및 세션 저장 데이터 검증
 if map_data and map_data.get("last_clicked"):
     lat = map_data["last_clicked"]["lat"]
     lng = map_data["last_clicked"]["lng"]
@@ -281,11 +307,10 @@ if map_data and map_data.get("last_clicked"):
     if clicked_feature:
         props = clicked_feature.get("properties", {})
         sido = props.get("SIDO_NM", "")
-        sigungu = props.get("SIGUNGU_NM", "") # 요청하신 속성명 대입
+        sigungu = props.get("SIGUNGU_NM", "")
         region_name = f"{sido} {sigungu}".strip()
     
     if 33 <= lat <= 39 and 124 <= lng <= 132:
-        # 데이터가 진짜 새로 클릭되어 바뀌었을 때만 세션 저장 및 리런 수행
         if st.session_state.click_lat != lat or st.session_state.click_lng != lng or st.session_state.selected_region != region_name:
             st.session_state.click_lat = lat
             st.session_state.click_lng = lng
@@ -310,16 +335,21 @@ else:
                 except:
                     days_diff = 999
                 
-                card_border, card_bg = ("#FF1493", "#FFE4E1") if days_diff <= 7 else ("#FFB6C1", "#FFF5F7")
+                card_border, card_bg = ("#E0A8BB", "#FFE4E1") if days_diff <= 7 else ("#ECC1CE", "#FFF5F7")
                 note_content = r['note'] if r['note'] else '메모 없음'
-                location_title = r['location_name'] if r['location_name'] else '제보 위치'
+                
+                # (4번) Title을 장소명이 아니라 '시군구 이름(region_title)'으로 매칭
+                # 만약 기존 데이터에 시군구 정보가 없으면 예외 방지용 기본값 처리
+                card_title = r['region_title'] if r['region_title'] else (r['location_name'] if r['location_name'] else '제보 위치')
+                sub_location = f"📍 {r['location_name']}" if r['region_title'] and r['location_name'] else ""
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
                 st.markdown(
-                    f'<div style="height: 120px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
-                    f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {location_title}</h4>'
-                    f'<p style="margin: 2px 0; font-size: 12px; color: #666;">👤 {nickname_text} | 📅 {r["bloom_date"]}</p>'
-                    f'<p style="margin: 6px 0 0; font-size: 12px; color: #555; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45;">📝 {note_content}</p>'
+                    f'<div style="height: 140px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
+                    f'<h4 style="margin: 0 0 4px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {card_title}</h4>'
+                    f'<p style="margin: 0; font-size: 11px; color: #FF1493; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                    f'<p style="margin: 3px 0; font-size: 11px; color: #777;">👤 {nickname_text} | 📅 {r["bloom_date"]}</p>'
+                    f'<p style="margin: 4px 0 0; font-size: 12px; color: #555; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">📝 {note_content}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
