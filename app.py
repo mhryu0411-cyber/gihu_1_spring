@@ -8,19 +8,19 @@ from datetime import date, datetime, timedelta
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
-# ─── 세션 초기화 (지도, 관리자 모드 등) ───
+# ─── 세션 초기화 ───
 if "click_lat" not in st.session_state: st.session_state.click_lat = None
 if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 127.8]
 if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── CSS (착시효과 및 그라데이션 디자인) ───
+# ─── CSS (우측 상단 절대고정 마법 & 디자인 케어) ───
 st.markdown("""
 <style>
     .block-container { padding-top: 1rem; }
     
-    /* 4. 은은한 핑크빛 그라데이션 사이드바 */
+    /* 은은한 핑크빛 그라데이션 사이드바 */
     [data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FFFFFF 100%) !important;
     }
@@ -39,23 +39,30 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(0,0,0,0.2); font-size: 12px; line-height: 18px;
     }
     
-    /* 1. 착시 마법: 컬럼 안의 팝오버 버튼을 위로 끌어올려서 카드 안으로 넣기 */
-    div[data-testid="stColumn"] div[data-testid="stPopover"] {
-        margin-top: -95px; /* 위로 강제 이동 */
-        margin-bottom: 60px; /* 원래 있던 빈 공간 상쇄 */
-        display: flex;
-        justify-content: flex-end;
-        padding-right: 8px;
-        position: relative;
-        z-index: 10;
+    /* 🛠️ 핵심 수정: 각 카드 칸(Column)을 기준점으로 잡고 팝오버를 우측 상단에 강제 고정 */
+    div[data-testid="stColumn"] {
+        position: relative !important;
     }
-    /* 버튼 자체를 작고 투명하게 조정 */
+    
+    div[data-testid="stColumn"] div[data-testid="stPopover"] {
+        position: absolute !important;
+        top: 10px;      /* 카드 상단에서의 거리 */
+        right: 10px;    /* 카드 우측에서의 거리 */
+        z-index: 10;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* 점점점 버튼을 배경이 없는 투명하고 깔끔한 스타일로 변경 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button {
         background-color: transparent !important;
         border: none !important;
         box-shadow: none !important;
-        color: #888;
-        padding: 0 5px;
+        color: #888 !important;
+        padding: 0 6px !important;
+    }
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button:hover {
+        color: #FF1493 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -126,13 +133,13 @@ with st.sidebar:
             st.toast("🌸 제보가 등록되었습니다!")
             st.rerun()
 
-    # 3. 관리자 모드 메뉴를 사이드바로 이동
+    # 관리자 메뉴 (사이드바 하단 배치)
     st.divider()
     with st.expander("🛠️ 관리자 메뉴"):
         admin_pw = st.text_input("비밀번호", type="password", key="admin_pw", placeholder="관리자 암호")
         if admin_pw == "저녁먹쟈":
             st.session_state.is_admin = True
-            st.success("인증 완료! 강제 삭제가 활성화됩니다.")
+            st.success("인증 완료! 강제 삭제 기능 활성화.")
         elif admin_pw:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
@@ -197,11 +204,11 @@ if st.session_state.click_lat:
         icon=folium.DivIcon(html='<div style="font-size:32px">📌</div>', icon_size=(32, 32), icon_anchor=(16, 16))
     ).add_to(m)
 
-# 2. 동적 범례: DB에 있는 실제 데이터 기준 날짜 산출
+# 동적 범례 날짜 매핑
 if date_coords:
     sorted_dates = sorted(list(date_coords.keys()))
-    recent_date_str = sorted_dates[-1]  # 가장 최근 제보 날짜
-    past_date_str = sorted_dates[0] if len(sorted_dates) > 1 else "이전" # 가장 오래된 제보 날짜
+    recent_date_str = sorted_dates[-1]  
+    past_date_str = sorted_dates[0] if len(sorted_dates) > 1 else "이전"
 else:
     recent_date_str = "제보 없음"
     past_date_str = "제보 없음"
@@ -251,7 +258,6 @@ else:
                 except:
                     days_diff = 999
                 
-                # 히트맵 분기
                 if days_diff <= 7:
                     card_border = "#FF1493"
                     card_bg = "#FFE4E1"
@@ -263,17 +269,17 @@ else:
                 location_title = r['location_name'] if r['location_name'] else '제보 위치'
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
-                # 예전 스타일의 HTML 카드 렌더링
+                # 🛠️ 수정한 부분: height를 115px로 늘리고, 오른쪽에 여백(padding-right: 35px)을 주어 버튼과 글자가 안 겹치게 함
                 st.markdown(
-                    f'<div style="height: 90px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
-                    f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; width: 85%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🌸 {location_title}</h4>'
+                    f'<div style="height: 115px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 35px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
+                    f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🌸 {location_title}</h4>'
                     f'<p style="margin: 2px 0; font-size: 12px; color: #666;">👤 {nickname_text} | 📅 {r["bloom_date"]}</p>'
-                    f'<p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 4px 0 0; font-size: 12px; color: #666;">📝 {note_content}</p>'
+                    f'<p style="margin: 6px 0 0; font-size: 12px; color: #666; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;">📝 {note_content}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
                 
-                # CSS 마법을 통해 위 HTML 카드 우측 상단으로 빨려 들어갈 팝오버
+                # 우측 상단으로 절대고정된 무색무취의 깔끔한 팝오버 메뉴
                 with st.popover("⋮"):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
