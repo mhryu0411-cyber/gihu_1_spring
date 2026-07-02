@@ -177,25 +177,32 @@ else:
     today = date.today()
     report_html = '<div class="report-container">'
     for r in reports:
-        # 날짜 차이 계산 (상단 마커에서 썼던 로직 그대로 적용)
+        # 날짜 차이 계산
         try:
             b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
             days_diff = (today - b_date).days
         except:
             days_diff = 999
         
-        # 1주일 이내면 진한 핫핑크 테두리(#FF1493)와 조금 더 붉은 배경, 지나면 연한 핑크
-        card_border = "#FF1493" if days_diff <= 7 else "#FF69B4"
-        card_bg = "#FFF0F3" if days_diff <= 7 else "#FFF5F7"
+        # [히트맵 분기]: 최근 7일 이내는 핫핑크(#FF1493)와 백그라운드 색 차별화
+        if days_diff <= 7:
+            card_border = "#FF1493"
+            card_bg = "#FFE4E1"  # 최근 제보는 더 붉은빛이 도는 살구핑크
+        else:
+            card_border = "#FFB6C1"
+            card_bg = "#FFF5F7"  # 오래된 제보는 연한 핑크
+            
+        note_content = r['note'] if r['note'] else ''
+        location_title = r['location_name'] if r['location_name'] else '제보 위치'
+        created_time = r['created_at'][:16] if r['created_at'] else ''
         
-        note_text = f'📝 {r["note"]}' if r['note'] else ''
-        
+        # 내부 스타일 태그 구조를 단순 문자열 결합으로 파싱 버그 원천 차단
         report_html += f"""
-        <div class="report-card" style="border-left: 4px solid {card_border}; background: {card_bg};">
-            <h4>🌸 {r['location_name'] or '제보 위치'}</h4>
+        <div class="report-card" style="border-left: 4px solid {card_border}; background-color: {card_bg};">
+            <h4>🌸 {location_title}</h4>
             <p>📅 {r['bloom_date']}</p>
-            <p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 0; font-size: 13px; color: #666;">{note_text}</p>
-            <p style="font-size:11px; color:#aaa; margin-top: 4px; margin-bottom: 0;">⏱️ {r['created_at'][:16] if r['created_at'] else ''}</p>
+            <p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 0;">📝 {note_content}</p>
+            <p style="font-size:11px; color:#aaa; margin-top: 4px; margin-bottom: 0;">⏱️ {created_time}</p>
         </div>
         """
     report_html += '</div>'
