@@ -6,26 +6,21 @@ import sqlite3
 from datetime import date, datetime, timedelta
 
 # ─── 숨기기 설정 ───
-hide_style = """
+final_hide_style = """
             <style>
-            [data-testid="stHeader"] {visibility: hidden;} 
-            footer {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_style, unsafe_allow_html=True)
-
-hide_style = """
-            <style>
+            /* 1. 상단 헤더 바 숨기기 */
             [data-testid="stHeader"] {
                 visibility: hidden !important;
                 display: none !important;
             }
             
+            /* 2. 하단 기본 푸터 숨기기 */
             footer {
                 visibility: hidden !important;
                 display: none !important;
             }
             
+            /* 3. 우측 하단 배지, 프로필, 빨간 박스 통째로 날리기 */
             [data-testid="stViewerBadge"], 
             .viewerBadge,
             div[class*="viewerBadge"],
@@ -41,7 +36,7 @@ hide_style = """
             }
             </style>
             """
-st.markdown(hide_style, unsafe_allow_html=True)
+st.markdown(final_hide_style, unsafe_allow_html=True)
 
 
 # ─── 페이지 설정 ───
