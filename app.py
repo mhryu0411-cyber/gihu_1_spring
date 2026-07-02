@@ -79,7 +79,7 @@ if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "selected_region" not in st.session_state: st.session_state.selected_region = ""
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# ─── 전역 CSS 스타일 (나눔고딕 & 사이드바 폰트 확대 & expand_more 완벽 제거) ───
+# ─── 전역 CSS 스타일 (나눔고딕 & 배경색 완화 & 메뉴 우측 고정 및 화살표 파괴) ───
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
@@ -90,14 +90,14 @@ st.markdown("""
     }
     
     .block-container { padding-top: 1rem; }
-    .stApp { background-color: #FAF5F6 !important; }
     
-    /* 사이드바 스타일 배경색 */
+    /* [수정 요청사항] 지도와 카드가 있는 메인 배경란을 아주 깨끗하고 연한 순수 화이트로 변경 */
+    .stApp { background-color: #FEFCFC !important; }
+    
+    /* 사이드바 스타일 배경색 및 내부 폰트 크게 유지 */
     [data-testid="stSidebar"] > div:first-child {
-        background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FAF5F6 100%) !important;
+        background: linear-gradient(180deg, #FFE4E1 0%, #FFF5F7 30%, #FFFFFF 100%) !important;
     }
-    
-    /* [수정 요청사항] 사이드바 내부 콘텐츠들 폰트 크기 전반적 상향 */
     [data-testid="stSidebar"] h2 { font-size: 24px !important; font-weight: 800 !important; }
     [data-testid="stSidebar"] .stMarkdown p { font-size: 15px !important; line-height: 1.5; }
     [data-testid="stSidebar"] .stCaption p { font-size: 13px !important; color: #666 !important; }
@@ -107,29 +107,40 @@ st.markdown("""
     
     .title-area { text-align: center; margin-top: 20px; margin-bottom: 15px; line-height: 1.5; }
     
-    /* 제보 내역 카드 내 우측 상단 미니 팝오버 정렬 정의 */
+    /* [수정 요청사항] 제보 내역 카드 기준으로 팝오버 컨테이너를 우측 상단으로 강제 절대 좌표 지정 */
     div[data-testid="stColumn"] { position: relative !important; }
     div[data-testid="stColumn"] div[data-testid="stPopover"] {
-        position: absolute !important; top: 10px !important; right: 15px !important;
-        left: auto !important; z-index: 99 !important; margin: 0 !important; padding: 0 !important;
+        position: absolute !important; 
+        top: 14px !important; 
+        right: 15px !important;
+        left: auto !important; 
+        left: unset !important;
+        z-index: 99 !important; 
+        margin: 0 !important; 
+        padding: 0 !important;
+        width: auto !important;
     }
     
-    /* [수정 요청사항] expand_more 화살표 완벽 해결용 초강력 덮어쓰기 */
+    /* [수정 요청사항] expand_more 화살표 아이콘 완전 파괴 및 순수 점점점(⋮) 구현 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
         background-color: transparent !important; border: none !important;
-        box-shadow: none !important; color: #888 !important; padding: 0 !important;
-        width: 26px !important; height: 26px !important; min-height: 26px !important;
+        box-shadow: none !important; padding: 0 !important;
+        width: 24px !important; height: 24px !important; min-height: 24px !important;
         display: inline-flex !important; align-items: center !important; justify-content: center !important;
     }
-    /* 버튼 내부의 모든 SVG 화살표 및 아이콘 바구니 숨김 처리 */
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] svg,
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] [data-testid="stIcon"],
-    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] span:not(:empty) {
+    /* 버튼 내부의 모든 원래 요소(화살표 껍데기, 스트림릿 내장 아이콘 전부)를 흔적도 없이 숨김 */
+    div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"] * {
         display: none !important;
     }
-    /* 오직 텍스트 요소(점점점)만 살려내고 크기 키우기 */
+    /* 텅 빈 버튼에 CSS 가상 선택자로 큼직한 점점점(⋮)만 새로 주입 */
     div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after {
-        content: "⋮"; font-size: 20px !important; font-weight: bold !important; color: #888;
+        content: "⋮" !important; 
+        display: inline-block !important;
+        visibility: visible !important;
+        font-size: 22px !important; 
+        font-weight: 900 !important; 
+        color: #999 !important;
+        line-height: 1 !important;
     }
     div[data-testid="stColumn"] div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
         color: #FF1493 !important;
@@ -167,7 +178,7 @@ def get_reports():
     return db.execute("SELECT * FROM reports ORDER BY created_at DESC").fetchall()
 
 def delete_report(rid):
-    db.execute("DELETE FROM reports WHERE id=?", (rid,))
+    db.execute("DELETE WHERE id=?", (rid,))
     db.commit()
 
 # ─── 사이드바 영역 ───
@@ -287,7 +298,6 @@ else:
     min_date = date.today()
     max_date = date.today()
 
-# 공통 컬러 등급 팔레트
 fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
 lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
 
@@ -319,7 +329,6 @@ for row in reports:
     
     marker_title = r_region_title if r_region_title else "지역 미상"
     
-    # 등치 마커 (원형 서클)
     folium.CircleMarker(
         location=[r_lat, r_lng],
         radius=15,
@@ -331,7 +340,6 @@ for row in reports:
         popup=folium.Popup(f"<div style='font-family: \"Nanum Gothic\", sans-serif;'><b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}</div>", max_width=250)
     ).add_to(m)
     
-    # 중앙 코어 포인트
     folium.CircleMarker(
         location=[r_lat, r_lng], radius=2.5, color="#FFFFFF", weight=1, fill=True, fill_color="#25000A", fill_opacity=1.0
     ).add_to(m)
@@ -362,7 +370,7 @@ for b_date, coords in date_coords.items():
     elif len(coords) == 1:
         text_loc = coords[0]
         
-    # [수정 요청사항] 지도 위 날짜 칸 글자크기 더 확대 (13px화 및 박스 규격 최적화)
+    # 확대된 날짜 배지 (13px 크기 고정 적용)
     folium.map.Marker(
         text_loc,
         icon=folium.features.DivIcon(
@@ -394,7 +402,6 @@ map_data = st_folium(
     returned_objects=["last_clicked"] 
 )
 
-# 클릭 및 지역 매핑 판정 가드
 if map_data and map_data.get("last_clicked"):
     click_pos = map_data["last_clicked"]
     new_lat = click_pos.get("lat")
@@ -453,7 +460,7 @@ else:
                     unsafe_allow_html=True
                 )
                 
-                # 상단 CSS 구조로 화살표 강제 제거에 성공한 깔끔 정사각 순수 점점점(⋮) 메뉴 작동
+                # 상단 CSS 인젝션으로 인해 화살표가 영구 격리되고 우측 상단으로 이동한 순수 점점점(⋮) 메뉴
                 with st.popover(""):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
