@@ -3,10 +3,17 @@ import folium
 from streamlit_folium import st_folium
 from collections import defaultdict
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
+
+# ─── 세션 초기화 (지도, 관리자 모드 등) ───
+if "click_lat" not in st.session_state: st.session_state.click_lat = None
+if "click_lng" not in st.session_state: st.session_state.click_lng = None
+if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 127.8]
+if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
+if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
 # ─── CSS (타이틀 짤림 방지, 범례 스타일 등) ───
 st.markdown("""
@@ -67,12 +74,6 @@ def delete_report(rid):
     db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()
 
-# ─── 세션 초기화 (지도 축척 및 위치 기억용 포함) ───
-if "click_lat" not in st.session_state: st.session_state.click_lat = None
-if "click_lng" not in st.session_state: st.session_state.click_lng = None
-if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 127.8]
-if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
-
 # ─── 사이드바: 제보 폼 ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
@@ -104,9 +105,23 @@ with st.sidebar:
             st.toast("🌸 제보가 등록되었습니다!")
             st.rerun()
 
-# ─── 메인: 지도 영역 ───
-st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
+# ─── 메인 상단: 타이틀 및 관리자 모드 ───
+t_col1, t_col2 = st.columns([0.95, 0.05])
+with t_col1:
+    st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
+with t_col2:
+    st.write("") # 위쪽 여백 조절용
+    with st.popover("⋮", help="관리자 메뉴"):
+        st.markdown("**🛠️ 관리자 모드**")
+        admin_pw = st.text_input("비밀번호", type="password", key="admin_pw", placeholder="관리자 암호")
+        if admin_pw == "저녁먹쟈":
+            st.session_state.is_admin = True
+            st.success("인증 완료!")
+        elif admin_pw:
+            st.session_state.is_admin = False
+            st.error("비밀번호 오류")
 
+# ─── 메인: 지도 영역 ───
 # 원래 축척 및 위치 유지를 위해 세션 데이터 바인딩
 m = folium.Map(
     location=st.session_state.map_center,
@@ -169,12 +184,15 @@ if st.session_state.click_lat:
         icon=folium.DivIcon(html='<div style="font-size:32px">📌</div>', icon_size=(32, 32), icon_anchor=(16, 16))
     ).add_to(m)
 
-# 지도 내 우측 하단 범례 추가
-legend_html = '''
+# ─── 동적 날짜 계산 및 범례 추가 ───
+recent_date_str = today.strftime("%Y-%m-%d")
+past_date_str = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+
+legend_html = f'''
 <div class="map-legend" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px;">
     <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; font-weight: bold; color: #555; height: 100px; text-align: right;">
-        <span>🌸 최근</span>
-        <span>과거</span>
+        <span>🌸 {recent_date_str} (최근)</span>
+        <span>{past_date_str} 이전</span>
     </div>
     <div style="background: linear-gradient(to bottom, #FF1493, #FFB6C1); width: 14px; height: 100px; border-radius: 7px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);"></div>
 </div>
@@ -199,7 +217,7 @@ if map_data:
             st.session_state.click_lng = lng
             st.rerun()
 
-# ─── 메인 하단: 제보 목록 영역 (그리드 + 팝오버 융합) ───
+# ─── 메인 하단: 제보 목록 영역 (카드 디자인 개선 및 관리자 기능) ───
 st.markdown("---")
 st.markdown("### 📋 최근 제보 내역")
 
@@ -218,36 +236,37 @@ else:
                 except:
                     days_diff = 999
                 
-                # 히트맵 분기
-                if days_diff <= 7:
-                    card_border = "#FF1493"
-                    card_bg = "#FFE4E1"
-                else:
-                    card_border = "#FFB6C1"
-                    card_bg = "#FFF5F7"
-                    
-                note_content = r['note'] if r['note'] else ''
+                # 히트맵 분기 기호
+                status_icon = "🔥" if days_diff <= 7 else "🌸"
+                
+                note_content = r['note'] if r['note'] else '메모 없음'
                 location_title = r['location_name'] if r['location_name'] else '제보 위치'
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
-                # 카드 디자인 HTML 출력
-                st.markdown(
-                    f'<div style="border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px; border-radius: 8px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
-                    f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333;">🌸 {location_title}</h4>'
-                    f'<p style="margin: 2px 0; font-size: 12px; color: #666;">👤 {nickname_text} | 📅 {r["bloom_date"]}</p>'
-                    f'<p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 4px 0 0; font-size: 12px; color: #666;">📝 {note_content}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-                
-                # Streamlit 네이티브 팝오버를 이용한 삭제 버튼 (점점점 메뉴)
-                with st.popover("⋮ 관리", help="수정/삭제 메뉴"):
-                    st.caption("작성 시 입력한 비밀번호를 입력하세요.")
-                    del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r['id']}")
-                    if st.button("삭제하기", key=f"del_{r['id']}", type="primary", use_container_width=True):
-                        if r['password'] and del_pw == r['password']:
-                            delete_report(r['id'])
-                            st.success("삭제되었습니다!")
-                            st.rerun()
-                        else:
-                            st.error("비밀번호가 일치하지 않습니다.")
+                # Streamlit 네이티브 컨테이너를 활용한 카드 디자인 (우측 상단 팝오버 배치)
+                with st.container(border=True):
+                    c1, c2 = st.columns([0.85, 0.15])
+                    with c1:
+                        st.markdown(f"**{status_icon} {location_title}**")
+                    with c2:
+                        # 카드 내부의 우측 상단 '점점점' 메뉴
+                        with st.popover("⋮", use_container_width=True):
+                            if st.session_state.is_admin:
+                                st.info("👑 관리자 권한 활성화됨")
+                                if st.button("🗑️ 강제 삭제", key=f"del_admin_{r['id']}", type="primary", use_container_width=True):
+                                    delete_report(r['id'])
+                                    st.toast("관리자 권한으로 삭제되었습니다.")
+                                    st.rerun()
+                            else:
+                                st.caption("게시물 비밀번호")
+                                del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r['id']}", label_visibility="collapsed")
+                                if st.button("삭제하기", key=f"del_{r['id']}", type="primary", use_container_width=True):
+                                    if r['password'] and del_pw == r['password']:
+                                        delete_report(r['id'])
+                                        st.success("삭제되었습니다!")
+                                        st.rerun()
+                                    else:
+                                        st.error("비밀번호 불일치")
+                    
+                    st.caption(f"👤 {nickname_text} | 📅 {r['bloom_date']}")
+                    st.write(f'<div style="font-size: 13px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📝 {note_content}</div>', unsafe_allow_html=True)
