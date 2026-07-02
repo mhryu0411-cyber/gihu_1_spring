@@ -284,7 +284,6 @@ main_col_map, main_col_cards = st.columns([7.5, 2.5])
 
 # ─── [중앙 구역] 지도(Map) 렌더링 영역 ───
 with main_col_map:
-    # [수정] zoom_snap과 zoom_delta를 추가하여 마우스 휠 및 +/- 조작 시 더 세밀하게 줌 조정
     m = folium.Map(
         location=[36.3, 127.8],
         zoom_start=9,
@@ -352,16 +351,13 @@ with main_col_map:
         line_color = lines[idx]
         marker_title = r_region_title if r_region_title else "지역 미상"
         
-        # [수정] 여러 겹의 투명도를 가진 원을 그려 히트맵(Glow) 형태로 채움
-        # 1. 가장 넓고 투명한 빛무리
+        # 히트맵(Glow) 효과 마커 배치
         folium.CircleMarker(
             location=[r_lat, r_lng], radius=22, color=None, fill=True, fill_color=fill_color, fill_opacity=0.15
         ).add_to(m)
-        # 2. 중간 투명도의 빛무리
         folium.CircleMarker(
             location=[r_lat, r_lng], radius=13, color=None, fill=True, fill_color=fill_color, fill_opacity=0.35
         ).add_to(m)
-        # 3. 핵심 코어 및 팝오버 부착 (약간의 투명도 부여)
         folium.CircleMarker(
             location=[r_lat, r_lng],
             radius=6,
@@ -372,7 +368,6 @@ with main_col_map:
             fill_opacity=0.75,
             popup=folium.Popup(f"<div style='font-family: \"Nanum Gothic\", sans-serif;'><b>{marker_title}</b><br>📍 {r_loc_name}<br>👤 {r_nickname}<br>📅 {r_bloom_date}<br>{r_note}</div>", max_width=250)
         ).add_to(m)
-        # 4. 중앙 화이트 닷
         folium.CircleMarker(
             location=[r_lat, r_lng], radius=2, color="#FFFFFF", weight=0.5, fill=True, fill_color="#25000A", fill_opacity=0.9
         ).add_to(m)
@@ -382,12 +377,16 @@ with main_col_map:
     for b_date, coords in date_coords.items():
         try:
             curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
+            # [수정] 지도 상에 노출될 라벨 텍스트 가공: 연도를 자르고 '월-일' 양식으로 변경 (YYYY-MM-DD -> MM-DD)
+            display_date = curr_d.strftime("%m-%d")
+            
             if min_date == max_date:
                 ratio = 0.0
             else:
                 ratio = (curr_d - min_date).days / float((max_date - min_date).days)
                 ratio = max(0.0, min(1.0, ratio))
         except:
+            display_date = b_date
             ratio = 0.0
             
         idx = int(ratio * (len(fills) - 1))
@@ -395,9 +394,9 @@ with main_col_map:
         target_line = lines[idx]
         
         if len(coords) >= 2:
-            # [수정] 등개화일선(동일 날짜 연결선) 강조를 위해 밑에 두꺼운 흰색 테두리(Glow) 추가
+            # 등개화일선 강조를 위한 흰색 글로우 라인
             folium.PolyLine(locations=coords, color="#ffffff", weight=7.0, opacity=0.6).add_to(m)
-            # 메인 연결선 (투명도 추가)
+            # 메인 연결선
             folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.85).add_to(m)
             
             mid_lat = sum(c[0] for c in coords) / len(coords)
@@ -406,16 +405,17 @@ with main_col_map:
         elif len(coords) == 1:
             text_loc = coords[0]
             
-        # [수정] 날짜 DivIcon에 opacity 속성을 추가하여 지도와 자연스럽게 어우러지게 투명도 부여
+        # [수정] 날짜 라벨에서 연도 숨김 처리(display_date 사용) 및 배경 투명도를 조금 더 투명하게(opacity: 0.65) 조정
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
-                icon_size=(125, 26),
-                icon_anchor=(62, 13), 
-                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 7px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.35); white-space: nowrap; text-align:center; line-height:16px; opacity: 0.85; backdrop-filter: blur(2px);">📅 {b_date}</div>'
+                icon_size=(105, 26),
+                icon_anchor=(52, 13), 
+                html=f'<div style="font-family: \'Nanum Gothic\', sans-serif; font-size: 13px; font-weight: 800; color: white; background-color: {target_fill}; border: 1.5px solid {target_line}; padding: 3px 6px; border-radius: 11px; box-shadow: 0px 2px 6px rgba(0,0,0,0.25); white-space: nowrap; text-align:center; line-height:16px; opacity: 0.65; backdrop-filter: blur(3px);">📅 {display_date}</div>'
             )
         ).add_to(m)
 
+    # 하단 범례 설정 (사용자가 인지하기 쉽도록 범례 날짜는 연도 포함 유지)
     legend_html = f'''
     <div style="position: absolute; bottom: 20px; left: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 12px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
         <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상</div>
