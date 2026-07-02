@@ -45,9 +45,7 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 # ─── 세션 초기화 ───
 if "click_lat" not in st.session_state: st.session_state.click_lat = None
 if "click_lng" not in st.session_state: st.session_state.click_lng = None
-# 🛠️ 줌 레벨이 강제로 리셋되는 현상을 막기 위해 초기 세션 구조 변경
-if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 127.8]
-if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
+# map_center, map_zoom 초기화 줄을 통째로 삭제합니다.
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
 # ─── CSS (우측 끝 강제 고정 및 눈이 편한 배경색) ───
@@ -193,8 +191,8 @@ st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도
 # ─── 메인: 지도 영역 ───
 # 🛠️ 핀 클릭 시 축척 축소 방지: 세션에 저장된 최신 zoom 배율을 그대로 지도 생성자에 바인딩합니다.
 m = folium.Map(
-    location=st.session_state.map_center,
-    zoom_start=st.session_state.map_zoom,
+    location=[36.5, 127.8], # <- 세션 대신 초기 고정 좌표값 사용
+    zoom_start=7,           # <- 세션 대신 초기 고정 줌값 사용
     tiles="CartoDB positron"
 )
 
@@ -268,27 +266,27 @@ legend_html = f'''
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
 
-# 🛠️ 버벅임 및 축척 초기화 동시 해결: "zoom" 속성을 받아와 실시간 배율을 세션에 가볍게 저장만 하도록 연동
-map_data = st_folium(m, width=None, height=600, returned_objects=["last_clicked", "zoom"])
+map_data = st_folium(
+    m, 
+    width=None, 
+    height=600, 
+    key="cherry_blossom_map", # <- KEY 추가 (독립 컴포넌트화)
+    returned_objects=["last_clicked"] # <- "zoom" 제거 (오직 클릭만 추적)
+)
 
-# 지도 조작 및 클릭 시의 반응 정밀 제어
-if map_data:
-    # 사용자가 마우스 휠이나 버튼으로 줌을 변경하면 축척 상태만 세션에 몰래 업데이트 (rerun 안 함 -> 버벅임 없음)
-    if map_data.get("zoom"):
-        st.session_state.map_zoom = map_data["zoom"]
-
-    # 사용자가 지도의 새로운 공간을 '클릭'했을 때만 핀을 꽂기 위해 작동
-    if map_data.get("last_clicked"):
-        lat = map_data["last_clicked"]["lat"]
-        lng = map_data["last_clicked"]["lng"]
-        
-        # 대한민국 영토 범위 안에서 클릭한 경우에만 세션 기록 후 새로고침
-        if 33 <= lat <= 39 and 124 <= lng <= 132:
+# 사용자가 지도를 '클릭'했을 때만 사이드바에 핀 정보 전달 및 새로고침
+if map_data and map_data.get("last_clicked"):
+    lat = map_data["last_clicked"]["lat"]
+    lng = map_data["last_clicked"]["lng"]
+    
+    # 대한민국 영토 범위 내에서 클릭했을 때만 작동
+    if 33 <= lat <= 39 and 124 <= lng <= 132:
+        # 중복 rerun 방지용 안전장치 추가
+        if st.session_state.click_lat != lat or st.session_state.click_lng != lng:
             st.session_state.click_lat = lat
             st.session_state.click_lng = lng
-            st.session_state.map_center = [lat, lng]
             st.rerun()
-
+                    
 # ─── 메인 하단: 제보 목록 영역 ───
 st.markdown("---")
 st.markdown("### 📋 최근 제보 내역")
