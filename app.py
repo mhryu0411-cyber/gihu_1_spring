@@ -8,23 +8,39 @@ from datetime import date, datetime
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
-# ─── CSS ───
+# ─── CSS 수정 (타이틀 여백 확보 및 제보 목록 가로 정렬을 위한 스타일 추가) ───
 st.markdown("""
 <style>
     .block-container { padding-top: 1rem; }
     div[data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #FFF0F5, #FFFFFF);
     }
+    /* 제보 목록 카드 스타일 */
     .report-card {
-        padding: 12px 16px; margin-bottom: 8px;
+        padding: 12px 16px; margin: 4px;
         border-radius: 10px; background: #FFF5F7;
         border-left: 4px solid #FF69B4;
+        flex: 1 1 calc(33.33% - 16px); /* 가로로 3개씩 배치되도록 설정 */
+        min-width: 250px;
     }
     .report-card h4 { margin: 0 0 4px; font-size: 15px; }
     .report-card p { margin: 2px 0; font-size: 13px; color: #666; }
-    .title-area { text-align: center; margin-bottom: 8px; }
+    .title-area { 
+        text-align: center; 
+        margin-top: 20px;       /* 상단 여백을 주어 글자 잘림 방지 */
+        margin-bottom: 15px; 
+        line-height: 1.4;
+    }
+    /* 가로 배치를 위한 flex 컨테이너 */
+    .report-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+    }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ─── DB ───
 def get_db():
