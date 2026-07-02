@@ -18,8 +18,7 @@ st.markdown("""
     .report-container { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
     .report-card {
         padding: 10px 14px; 
-        border-radius: 8px; background: #FFF5F7;
-        border-left: 4px solid #FF69B4;
+        border-radius: 8px;
         width: 220px; 
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
@@ -175,16 +174,28 @@ st.markdown("### 📋 최근 제보 내역")
 if not reports:
     st.caption("아직 제보가 없습니다.")
 else:
+    today = date.today()
     report_html = '<div class="report-container">'
     for r in reports:
-        # 메모 길이에 상관없이 이쁘게 떨어지도록 한 줄 처리
-        note_display = f'<p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 0;">📝 {r["note"]}</p>' if r['note'] else ''
+        # 날짜 차이 계산 (상단 마커에서 썼던 로직 그대로 적용)
+        try:
+            b_date = datetime.strptime(r["bloom_date"], "%Y-%m-%d").date()
+            days_diff = (today - b_date).days
+        except:
+            days_diff = 999
+        
+        # 1주일 이내면 진한 핫핑크 테두리(#FF1493)와 조금 더 붉은 배경, 지나면 연한 핑크
+        card_border = "#FF1493" if days_diff <= 7 else "#FF69B4"
+        card_bg = "#FFF0F3" if days_diff <= 7 else "#FFF5F7"
+        
+        note_text = f'📝 {r["note"]}' if r['note'] else ''
+        
         report_html += f"""
-        <div class="report-card">
+        <div class="report-card" style="border-left: 4px solid {card_border}; background: {card_bg};">
             <h4>🌸 {r['location_name'] or '제보 위치'}</h4>
             <p>📅 {r['bloom_date']}</p>
-            {note_display}
-            <p style="font-size:11px;color:#aaa; margin: 0;">⏱️ {r['created_at'][:16] if r['created_at'] else ''}</p>
+            <p style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin: 0; font-size: 13px; color: #666;">{note_text}</p>
+            <p style="font-size:11px; color:#aaa; margin-top: 4px; margin-bottom: 0;">⏱️ {r['created_at'][:16] if r['created_at'] else ''}</p>
         </div>
         """
     report_html += '</div>'
