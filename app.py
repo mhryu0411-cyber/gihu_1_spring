@@ -45,6 +45,7 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 # ─── 세션 초기화 ───
 if "click_lat" not in st.session_state: st.session_state.click_lat = None
 if "click_lng" not in st.session_state: st.session_state.click_lng = None
+# 🛠️ 줌 레벨이 강제로 리셋되는 현상을 막기 위해 초기 세션 구조 변경
 if "map_center" not in st.session_state: st.session_state.map_center = [36.5, 127.8]
 if "map_zoom" not in st.session_state: st.session_state.map_zoom = 7
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
@@ -190,6 +191,7 @@ with st.sidebar:
 st.markdown('<div class="title-area"><h2>🌸 봄철 벚꽃 개화 제보 지도</h2><p style="color:#888">지도를 클릭하여 벚꽃 개화 위치를 제보하세요</p></div>', unsafe_allow_html=True)
 
 # ─── 메인: 지도 영역 ───
+# 🛠️ 핀 클릭 시 축척 축소 방지: 세션에 저장된 최신 zoom 배율을 그대로 지도 생성자에 바인딩합니다.
 m = folium.Map(
     location=st.session_state.map_center,
     zoom_start=st.session_state.map_zoom,
@@ -266,20 +268,26 @@ legend_html = f'''
 '''
 m.get_root().html.add_child(folium.Element(legend_html))
 
-# 🛠️ 버벅임 해결 핵심수정: center와 zoom을 빼고 오직 "last_clicked"만 추적하게 최적화하여 렉을 완전히 없앰
-map_data = st_folium(m, width=None, height=600, returned_objects=["last_clicked"])
+# 🛠️ 버벅임 및 축척 초기화 동시 해결: "zoom" 속성을 받아와 실시간 배율을 세션에 가볍게 저장만 하도록 연동
+map_data = st_folium(m, width=None, height=600, returned_objects=["last_clicked", "zoom"])
 
-# 사용자가 지도를 '클릭'했을 때만 핀을 꽂기 위해 데이터 처리 실행
-if map_data and map_data.get("last_clicked"):
-    lat = map_data["last_clicked"]["lat"]
-    lng = map_data["last_clicked"]["lng"]
-    # 대한민국 영토 반경 내 클릭인 경우에만 작동
-    if 33 <= lat <= 39 and 124 <= lng <= 132:
-        st.session_state.click_lat = lat
-        st.session_state.click_lng = lng
-        # 클릭 시점에 현재 맵 상태를 고정해두어 부드럽게 연동되도록 유도
-        st.session_state.map_center = [lat, lng]
-        st.rerun()
+# 지도 조작 및 클릭 시의 반응 정밀 제어
+if map_data:
+    # 사용자가 마우스 휠이나 버튼으로 줌을 변경하면 축척 상태만 세션에 몰래 업데이트 (rerun 안 함 -> 버벅임 없음)
+    if map_data.get("zoom"):
+        st.session_state.map_zoom = map_data["zoom"]
+
+    # 사용자가 지도의 새로운 공간을 '클릭'했을 때만 핀을 꽂기 위해 작동
+    if map_data.get("last_clicked"):
+        lat = map_data["last_clicked"]["lat"]
+        lng = map_data["last_clicked"]["lng"]
+        
+        # 대한민국 영토 범위 안에서 클릭한 경우에만 세션 기록 후 새로고침
+        if 33 <= lat <= 39 and 124 <= lng <= 132:
+            st.session_state.click_lat = lat
+            st.session_state.click_lng = lng
+            st.session_state.map_center = [lat, lng]
+            st.rerun()
 
 # ─── 메인 하단: 제보 목록 영역 ───
 st.markdown("---")
@@ -310,7 +318,7 @@ else:
                 location_title = r['location_name'] if r['location_name'] else '제보 위치'
                 nickname_text = r['nickname'] if r['nickname'] else '익명'
                 
-                # 카드 높이를 120px로 넉넉하게 확장 + 우측 패딩을 40px 주어 글자가 생략기호(⋮) 절대 침범 못하게 조치
+                # 카드 디자인 유지
                 st.markdown(
                     f'<div style="height: 120px; border-left: 4px solid {card_border}; background-color: {card_bg}; padding: 12px 40px 12px 12px; border-radius: 8px; margin-bottom: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">'
                     f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 90%;">🌸 {location_title}</h4>'
@@ -320,7 +328,7 @@ else:
                     unsafe_allow_html=True
                 )
                 
-                # 이제 무조건 오른쪽 끝 구석으로 완벽 정렬되는 팝오버
+                # 우측 상단 팝오버
                 with st.popover("⋮"):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
