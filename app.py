@@ -152,8 +152,9 @@ st.markdown("""
         color: #FF1493 !important;
     }
 
+    /* [수정] 지도 높이가 늘어남에 따라 카드 스크롤 컨테이너 높이도 850px에 맞게 확장 */
     .scroll-container {
-        max-height: 700px;
+        max-height: 850px;
         overflow-y: auto;
         padding-right: 5px;
         overflow-x: hidden;
@@ -293,6 +294,7 @@ with main_col_map:
         unsafe_allow_html=True
     )
 
+    # [수정] zoom_snap과 zoom_delta를 0.5로 명시하여 클릭 한 번당 줌 거리가 절반(10mi 단위 체감)으로 촘촘해지도록 제어
     m = folium.Map(
         location=[36.3, 127.8],
         zoom_start=9,
@@ -360,7 +362,6 @@ with main_col_map:
         line_color = lines[idx]
         marker_title = r_region_title if r_region_title else "지역 미상"
         
-        # 마커 표시
         folium.CircleMarker(
             location=[r_lat, r_lng], radius=22, color=None, fill=True, fill_color=fill_color, fill_opacity=0.15
         ).add_to(m)
@@ -381,7 +382,6 @@ with main_col_map:
             location=[r_lat, r_lng], radius=2, color="#FFFFFF", weight=0.5, fill=True, fill_color="#25000A", fill_opacity=0.9
         ).add_to(m)
         
-        # 선을 연결하기 위한 좌표 수집
         date_coords[r_bloom_date].append([r_lat, r_lng])
 
     for b_date, coords in date_coords.items():
@@ -403,10 +403,8 @@ with main_col_map:
         target_line = lines[idx]
         
         if len(coords) >= 2:
-            # [🔥 핵심 수정부]: 수집된 좌표 리스트를 경도(lng, 즉 c[1]) 기준으로 가로 정렬 (서 -> 동 순서 보장)
             coords.sort(key=lambda c: c[1])
             
-            # 정렬된 순서대로 부드럽게 선 그리기
             folium.PolyLine(locations=coords, color="#ffffff", weight=7.0, opacity=0.6).add_to(m)
             folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.85).add_to(m)
             
@@ -416,7 +414,6 @@ with main_col_map:
         elif len(coords) == 1:
             text_loc = coords[0]
             
-        # 날짜 마커 표시
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
@@ -438,10 +435,11 @@ with main_col_map:
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
 
+    # [수정] 지도 높이(height)를 기존 700에서 850으로 세로 확장 배치
     map_data = st_folium(
         m, 
         width=None, 
-        height=700, 
+        height=850, 
         key="cherry_blossom_map",
         returned_objects=["last_clicked"] 
     )
