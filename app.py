@@ -61,15 +61,13 @@ def find_region_by_point(lat, lng, geojson):
                         return region_name
     return ""
 
-# ─── [수정] 사이드바 화살표 버튼 생존형 UI 숨김 스타일 ───
+# ─── 사이드바 화살표 버튼 생존형 UI 숨김 스타일 ───
 final_hide_style = """
             <style>
-            /* 헤더 자체는 투명하게 만들되 완전히 없애지 않아 버튼이 누락되지 않도록 조절 */
             [data-testid="stHeader"] { 
                 background-color: transparent !important; 
                 background: none !important;
             }
-            /* 헤더 우측의 지저분한 배지나 메뉴 아이콘들만 정밀 타격하여 제거 */
             [data-testid="stHeader"] > div:first-child > div:nth-child(2) {
                 display: none !important;
                 visibility: hidden !important;
@@ -78,7 +76,6 @@ final_hide_style = """
             [data-testid="stViewerBadge"], .viewerBadge, div[class*="viewerBadge"] {
                 display: none !important; visibility: hidden !important;
             }
-            /* 사이드바가 닫혔을 때 나타나는 둥근 화살표 버튼이 잘 보이도록 스타일 강조 */
             [data-testid="stSidebarCollapseButton"] button {
                 background-color: #FFE4E1 !important;
                 border: 1px solid #FFB6C1 !important;
@@ -117,7 +114,6 @@ st.markdown("""
     
     .title-area { text-align: left; margin-bottom: 15px; line-height: 1.5; }
     
-    /* 팝오버를 개별 카드(.cherry-card)에 소속되도록 CSS :has() 선택자 활용 */
     div[data-testid="stVerticalBlock"]:has(.cherry-card) {
         position: relative !important;
     }
@@ -134,7 +130,6 @@ st.markdown("""
         width: auto !important;
     }
     
-    /* expand_more 화살표 아이콘 파괴 및 순수 점점점(⋮) 구현 */
     div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
         background-color: transparent !important; border: none !important;
         box-shadow: none !important; padding: 0 !important;
@@ -157,7 +152,6 @@ st.markdown("""
         color: #FF1493 !important;
     }
 
-    /* 우측 카드 리스트 영역에 고정 높이 스크롤 바 부여 */
     .scroll-container {
         max-height: 700px;
         overflow-y: auto;
@@ -366,7 +360,7 @@ with main_col_map:
         line_color = lines[idx]
         marker_title = r_region_title if r_region_title else "지역 미상"
         
-        # 히트맵(Glow) 마커 배치
+        # 마커 표시
         folium.CircleMarker(
             location=[r_lat, r_lng], radius=22, color=None, fill=True, fill_color=fill_color, fill_opacity=0.15
         ).add_to(m)
@@ -387,6 +381,7 @@ with main_col_map:
             location=[r_lat, r_lng], radius=2, color="#FFFFFF", weight=0.5, fill=True, fill_color="#25000A", fill_opacity=0.9
         ).add_to(m)
         
+        # 선을 연결하기 위한 좌표 수집
         date_coords[r_bloom_date].append([r_lat, r_lng])
 
     for b_date, coords in date_coords.items():
@@ -408,6 +403,10 @@ with main_col_map:
         target_line = lines[idx]
         
         if len(coords) >= 2:
+            # [🔥 핵심 수정부]: 수집된 좌표 리스트를 경도(lng, 즉 c[1]) 기준으로 가로 정렬 (서 -> 동 순서 보장)
+            coords.sort(key=lambda c: c[1])
+            
+            # 정렬된 순서대로 부드럽게 선 그리기
             folium.PolyLine(locations=coords, color="#ffffff", weight=7.0, opacity=0.6).add_to(m)
             folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.85).add_to(m)
             
@@ -417,6 +416,7 @@ with main_col_map:
         elif len(coords) == 1:
             text_loc = coords[0]
             
+        # 날짜 마커 표시
         folium.map.Marker(
             text_loc,
             icon=folium.features.DivIcon(
