@@ -90,6 +90,8 @@ if "click_lat" not in st.session_state: st.session_state.click_lat = None
 if "click_lng" not in st.session_state: st.session_state.click_lng = None
 if "selected_region" not in st.session_state: st.session_state.selected_region = ""
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
+# 각 카드의 수정 상태 여부를 추적하는 딕셔너리 세션 세팅
+if "edit_mode" not in st.session_state: st.session_state.edit_mode = {}
 
 # ─── 전역 CSS 스타일 ───
 st.markdown("""
@@ -114,11 +116,13 @@ st.markdown("""
     
     .title-area { text-align: left; margin-bottom: 15px; line-height: 1.5; }
     
-    div[data-testid="stVerticalBlock"]:has(.cherry-card) {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card), div[data-testid="stVerticalBlock"]:has(.cherry-edit-card) {
         position: relative !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] {
+    /* 카드 리스트 및 에디터 팝오버 고정 위치 */
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"],
+    div[data-testid="stVerticalBlock"]:has(.cherry-edit-card) div[data-testid="stPopover"] {
         position: absolute !important; 
         top: 14px !important; 
         right: 15px !important;
@@ -130,16 +134,19 @@ st.markdown("""
         width: auto !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"],
+    div[data-testid="stVerticalBlock"]:has(.cherry-edit-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
         background-color: transparent !important; border: none !important;
         box-shadow: none !important; padding: 0 !important;
         width: 24px !important; height: 24px !important; min-height: 24px !important;
         display: inline-flex !important; align-items: center !important; justify-content: center !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] * {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] *,
+    div[data-testid="stVerticalBlock"]:has(.cherry-edit-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"] * {
         display: none !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after,
+    div[data-testid="stVerticalBlock"]:has(.cherry-edit-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]::after {
         content: "⋮" !important; 
         display: inline-block !important;
         visibility: visible !important;
@@ -148,7 +155,8 @@ st.markdown("""
         color: #999 !important;
         line-height: 1 !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
+    div[data-testid="stVerticalBlock"]:has(.cherry-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after,
+    div[data-testid="stVerticalBlock"]:has(.cherry-edit-card) div[data-testid="stPopover"] button[data-testid="stPopoverButton"]:hover::after {
         color: #FF1493 !important;
     }
 
@@ -194,6 +202,12 @@ def delete_report(rid):
     db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()
 
+# [🔥 신규 추가] 특정 카드의 정보를 업데이트하는 DB 업데이트 함수
+def update_report(rid, nickname, location_name, note, bloom_date):
+    db.execute("UPDATE reports SET nickname=?, location_name=?, note=?, bloom_date=? WHERE id=?", 
+               (nickname, location_name, note, bloom_date, rid))
+    db.commit()
+
 # ─── 사이드바 영역 ───
 with st.sidebar:
     st.markdown("## 🌸 벚꽃 개화 제보")
@@ -214,7 +228,7 @@ with st.sidebar:
         st.info("📍 지도에서 시군구 구역을 클릭하세요")
 
     nickname = st.text_input("👤 작성자 (닉네임)", placeholder="예: 벚꽃헌터")
-    password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 삭제 시 필요")
+    password = st.text_input("🔒 비밀번호", type="password", placeholder="게시물 수정/삭제 시 필요")
     
     loc_name = st.text_input("세부 장소", placeholder="예: 윤중로 벚꽃길, 오거리 앞 공원")
     bloom_date = st.date_input("📅 개화 확인 날짜", value=date.today())
@@ -251,7 +265,7 @@ with st.sidebar:
         admin_pw = st.text_input("비밀번호", type="password", key="admin_pw", placeholder="관리자 암호")
         if admin_pw == "저녁먹쟈":
             st.session_state.is_admin = True
-            st.success("인증 완료! 강제 삭제 기능 활성화.")
+            st.success("인증 완료! 강제 제어 기능 활성화.")
         elif admin_pw:
             st.session_state.is_admin = False
             st.error("비밀번호 오류")
@@ -272,8 +286,6 @@ else:
     min_date = date.today()
     max_date = date.today()
 
-# [수정] 색상을 반전하고, 너무 연해서 안 보이던 옛날 파스텔 분홍을 제거
-# 빠를수록 연한 핑크, 늦을수록 진한 버건디 계열로 표출 (시인성 확보 완료)
 fills = ["#F48FB1", "#F06292", "#E91E63", "#D81B60", "#AD1457", "#4A0014"] 
 lines = ["#C2185B", "#B71C1C", "#880E4F", "#7A0026", "#4A0014", "#25000A"]
 
@@ -423,7 +435,6 @@ with main_col_map:
             )
         ).add_to(m)
 
-    # 하단 범례 색상바도 반전 순서(연함 -> 진함)에 매칭되도록 가디언트 순서 수정
     legend_html = f'''
     <div style="position: absolute; bottom: 20px; left: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 12px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
         <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상 (빠름 → 늦음)</div>
@@ -484,38 +495,96 @@ with main_col_cards:
                 days_diff = 999
             
             card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
-            note_content = r_note if r_note else '메모 없음'
             card_title = r_region_title if r_region_title else "지역 미상"
-            sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
-            nickname_text = r_nickname if r_nickname else '익명'
+            
+            # 현재 카드가 '수정 모드 활성화 상태'인지 확인
+            is_editing = st.session_state.edit_mode.get(r_id, False)
             
             with st.container():
-                st.markdown(
-                    f'<div class="cherry-card" style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
-                    f'<h4 style="margin: 0 0 4px; font-size: 16px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 85%;">🌸 {card_title}</h4>'
-                    f'<p style="margin: 0; font-size: 13px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                    f'<p style="margin: 4px 0; font-size: 12px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
-                    f'<p style="margin: 6px 0 0; font-size: 13px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
+                if is_editing:
+                    # ─── 🛠️ 인라인 수정 양식 (수정 활성화 시 노출) ───
+                    st.markdown(
+                        f'<div class="cherry-edit-card" style="font-family: \'Nanum Gothic\', sans-serif; min-height: 230px; border-left: 5px solid #00BCD4; background-color: #E0F7FA; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                        f'<h4 style="margin: 0 0 6px; font-size: 15px; color: #006064; font-weight: 800;">⚙️ 제보 정보 수정 중 ({card_title})</h4>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                    
+                    # 카드 내부 여백에 채워질 입력 필드 생성 (기존값 바인딩)
+                    edit_nick = st.text_input("👤 닉네임", value=r_nickname, key=f"ed_nick_{r_id}")
+                    edit_loc = st.text_input("📍 세부 장소", value=r_loc_name, key=f"ed_loc_{r_id}")
+                    
+                    try: current_b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+                    except: current_b_date = date.today()
+                    edit_date = st.date_input("📅 개화 일자", value=current_b_date, key=f"ed_date_{r_id}")
+                    
+                    edit_note = st.text_area("📝 메모", value=r_note, key=f"ed_note_{r_id}")
+                    
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        if st.button("💾 저장", key=f"save_{r_id}", type="primary", use_container_width=True):
+                            if not edit_nick:
+                                st.error("닉네임을 입력해 주세요.")
+                            else:
+                                update_report(r_id, edit_nick, edit_loc, edit_note, str(edit_date))
+                                st.session_state.edit_mode[r_id] = False # 수정 모드 종료
+                                st.toast("🌸 내용이 성공적으로 수정되었습니다!")
+                                st.rerun()
+                    with btn_col2:
+                        if st.button("❌ 취소", key=f"cancel_{r_id}", use_container_width=True):
+                            st.session_state.edit_mode[r_id] = False
+                            st.rerun()
+                else:
+                    # ─── 🌸 일반 텍스트 카드 보기 형태 ───
+                    note_content = r_note if r_note else '메모 없음'
+                    sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
+                    nickname_text = r_nickname if r_nickname else '익명'
+                    
+                    st.markdown(
+                        f'<div class="cherry-card" style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                        f'<h4 style="margin: 0 0 4px; font-size: 16px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 85%;">🌸 {card_title}</h4>'
+                        f'<p style="margin: 0; font-size: 13px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                        f'<p style="margin: 4px 0; font-size: 12px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
+                        f'<p style="margin: 6px 0 0; font-size: 13px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
                 
+                # ─── ⚙️ 제어용 미니 팝오버 (⋮ 메뉴 버튼 클릭 시) ───
                 with st.popover(""):
                     if st.session_state.is_admin:
                         st.info("👑 관리자 권한 활성화됨")
-                        if st.button("🗑️ 강제 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
-                            delete_report(r_id)
-                            st.toast("관리자 권한으로 삭제되었습니다.")
-                            st.rerun()
+                        col_adm1, col_adm2 = st.columns(2)
+                        with col_adm1:
+                            if st.button("✏️ 수정", key=f"edit_admin_{r_id}", use_container_width=True):
+                                st.session_state.edit_mode[r_id] = True
+                                st.rerun()
+                        with col_adm2:
+                            if st.button("🗑️ 삭제", key=f"del_admin_{r_id}", type="primary", use_container_width=True):
+                                delete_report(r_id)
+                                st.toast("관리자 권한으로 삭제되었습니다.")
+                                st.rerun()
                     else:
                         st.caption("작성 시 입력한 비밀번호")
                         del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
-                        if st.button("삭제하기", key=f"del_{r_id}", type="primary", use_container_width=True):
-                            if r_password and del_pw == r_password:
-                                delete_report(r_id)
-                                st.success("삭제되었습니다!")
-                                st.rerun()
-                            else:
-                                st.error("비밀번호가 일치하지 않습니다.")
+                        
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            # ✏️ 수정하기 작동부
+                            if st.button("✏️ 수정", key=f"edit_click_{r_id}", use_container_width=True):
+                                if r_password and del_pw == r_password:
+                                    st.session_state.edit_mode[r_id] = True # 수정모드 락 해제
+                                    st.rerun()
+                                else:
+                                    st.error("비밀번호 불일치")
+                        with col_btn2:
+                            # 🗑️ 삭제하기 작동부
+                            if st.button("🗑️ 삭제", key=f"del_{r_id}", type="primary", use_container_width=True):
+                                if r_password and del_pw == r_password:
+                                    delete_report(r_id)
+                                    st.success("삭제되었습니다!")
+                                    st.rerun()
+                                else:
+                                    st.error("비밀번호 불일치")
                                 
         st.markdown('</div>', unsafe_allow_html=True)
