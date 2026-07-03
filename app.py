@@ -10,8 +10,51 @@ import os
 # ─── 페이지 설정 ───
 st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="🌸")
 
-# 전체 로딩 처리 (Loading...)
-with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
+# ─── 🛠️ [신규 추가] 화면 정중앙 풀스크린 로딩 UI (CSS 포함) ───
+# st.spinner가 돌고 있는 동안 화면 전체를 덮는 중앙 정렬 레이아웃을 생성합니다.
+with st.spinner(" "):
+    st.markdown("""
+        <style>
+        /* Streamlit 기본 스피너의 테두리와 내부 요소를 숨기고 커스텀 레이아웃으로 대체 */
+        div[data-testid="stSpinner"] > div {
+            border: none !important;
+            background: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+        div[data-testid="stSpinner"] {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(255, 245, 247, 0.85); /* 부드러운 벚꽃빛 반투명 배경 */
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Nanum Gothic', sans-serif;
+            pointer-events: auto;
+        }
+        /* 중앙에 띄울 커스텀 로딩 컨텐츠 */
+        div[data-testid="stSpinner"]::after {
+            content: "🌸\\A Loading...\\A\\A 데이터를 불러오는 중입니다.";
+            white-space: pre-wrap;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 800;
+            color: #D81B60;
+            animation: pulse-bloom 1.5s infinite ease-in-out;
+            line-height: 1.4;
+        }
+        @keyframes pulse-bloom {
+            0% { transform: scale(0.95); opacity: 0.6; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.6; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # ─── 1. GeoJSON 파일 캐싱 ───
     @st.cache_data(show_spinner=False)
@@ -94,20 +137,17 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
     if "selected_region" not in st.session_state: st.session_state.selected_region = ""
     if "is_admin" not in st.session_state: st.session_state.is_admin = False
     if "edit_mode" not in st.session_state: st.session_state.edit_mode = {}
-    # 더보기란 지역 필터링용 세션
     if "selected_sido_filter" not in st.session_state: st.session_state.selected_sido_filter = "전체"
 
-    # ─── 전역 CSS 스타일 (아이콘 깨짐/글자 겹침 집중 해결) ───
+    # ─── 전역 CSS 스타일 (아이콘 깨짐/글자 겹침 해결 유지) ───
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
 
-        /* 아이콘 전용 클래스(:not)를 제외한 일반 텍스트 요소에만 폰트 적용하여 겹침 방지 */
         html, body, .stApp, [data-testid="stWidgetLabel"], h1, h2, h3, h4, h5, h6, p, span, div, input, textarea, button {
             font-family: 'Nanum Gothic', sans-serif;
         }
         
-        /* Streamlit 아이콘 폰트 강제 유지 */
         .st-emotion-cache-kiw0f, [aria-hidden="true"], [data-testid="stIcon"] {
             font-family: "streamlit-icons" !important;
         }
@@ -281,7 +321,7 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
         else:
             st.session_state.is_admin = False
 
-    # ─── 벚꽃 제보 데이터 사전 정리 및 색상 범위 연산 ───
+    # ─── 데이터 사전 정리 및 색상 범위 연산 ───
     reports = get_reports()
     valid_dates = []
     for row in reports:
@@ -298,7 +338,6 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
     fills = ["#F48FB1", "#F06292", "#E91E63", "#D81B60", "#AD1457", "#4A0014"] 
     lines = ["#C2185B", "#B71C1C", "#880E4F", "#7A0026", "#4A0014", "#25000A"]
 
-    # 데이터 분할 처리 (상위 6개는 최근 내역 카드 리스트, 나머지는 더보기용)
     recent_reports = reports[:6]
     extra_reports = reports[6:]
 
@@ -320,7 +359,6 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
             unsafe_allow_html=True
         )
 
-        # ─── 🛠️ RCP 시나리오 선택 버튼 구역 ───
         st.markdown("""
         <style>
             .rcp-container {
@@ -420,13 +458,11 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
             
             try:
                 curr_d = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-                if min_date == max_date:
-                    ratio = 0.0
+                if min_date == max_date: ratio = 0.0
                 else:
                     ratio = (curr_d - min_date).days / float((max_date - min_date).days)
                     ratio = max(0.0, min(1.0, ratio))
-            except:
-                ratio = 0.0
+            except: ratio = 0.0
                 
             idx = int(ratio * (len(fills) - 1))
             fill_color = fills[idx]
@@ -459,9 +495,7 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
             try:
                 curr_d = datetime.strptime(b_date, "%Y-%m-%d").date()
                 display_date = curr_d.strftime("%m-%d")
-                
-                if min_date == max_date:
-                    ratio = 0.0
+                if min_date == max_date: ratio = 0.0
                 else:
                     ratio = (curr_d - min_date).days / float((max_date - min_date).days)
                     ratio = max(0.0, min(1.0, ratio))
@@ -475,10 +509,8 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
             
             if len(coords) >= 2:
                 coords.sort(key=lambda c: c[1])
-                
                 folium.PolyLine(locations=coords, color="#ffffff", weight=7.0, opacity=0.6).add_to(m)
                 folium.PolyLine(locations=coords, color=target_line, weight=3.5, opacity=0.85).add_to(m)
-                
                 mid_lat = sum(c[0] for c in coords) / len(coords)
                 mid_lng = sum(c[1] for c in coords) / len(coords)
                 text_loc = [mid_lat, mid_lng]
@@ -521,14 +553,13 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
             
             if new_lat and new_lng and (st.session_state.click_lat != new_lat or st.session_state.click_lng != new_lng):
                 detected_region = find_region_by_point(new_lat, new_lng, geo_data)
-                
                 if detected_region:
                     st.session_state.selected_region = detected_region
                     st.session_state.click_lat = new_lat
                     st.session_state.click_lng = new_lng
                     st.rerun()
 
-    # ─── [우측 구역] 최근 제보 내역 카드 (최신 6개 고정) ───
+    # ─── [우측 구역] 최근 제보 내역 카드 ───
     with main_col_cards:
         st.markdown("### 📋 최근 제보 내역")
         
@@ -550,8 +581,7 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                 try:
                     b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
                     days_diff = (date.today() - b_date).days
-                except:
-                    days_diff = 999
+                except: days_diff = 999
                 
                 card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
                 card_title = r_region_title if r_region_title else "지역 미상"
@@ -566,25 +596,21 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                             f'</div>',
                             unsafe_allow_html=True
                         )
-                        
                         edit_nick = st.text_input("👤 닉네임", value=r_nickname, key=f"ed_nick_{r_id}")
                         edit_loc = st.text_input("📍 세부 장소", value=r_loc_name, key=f"ed_loc_{r_id}")
-                        
                         try: current_b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
                         except: current_b_date = date.today()
                         edit_date = st.date_input("📅 개화 일자", value=current_b_date, key=f"ed_date_{r_id}")
-                        
                         edit_note = st.text_area("📝 메모", value=r_note, key=f"ed_note_{r_id}")
                         
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
                             if st.button("💾 저장", key=f"save_{r_id}", type="primary", use_container_width=True):
-                                if not edit_nick:
-                                    st.error("닉네임을 입력해 주세요.")
+                                if not edit_nick: st.error("닉네임을 입력해 주세요.")
                                 else:
                                     update_report(r_id, edit_nick, edit_loc, edit_note, str(edit_date))
                                     st.session_state.edit_mode[r_id] = False
-                                    st.toast("🌸 내용이 성공적으로 수정되었습니다!")
+                                    st.toast("🌸 내용이 수정되었습니다!")
                                     st.rerun()
                         with btn_col2:
                             if st.button("❌ 취소", key=f"cancel_{r_id}", use_container_width=True):
@@ -621,37 +647,32 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                         else:
                             st.caption("작성 시 입력한 비밀번호")
                             del_pw = st.text_input("비밀번호", type="password", key=f"pw_{r_id}", label_visibility="collapsed")
-                            
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
                                 if st.button("✏️ 수정", key=f"edit_click_{r_id}", use_container_width=True):
                                     if r_password and del_pw == r_password:
                                         st.session_state.edit_mode[r_id] = True
                                         st.rerun()
-                                    else:
-                                        st.error("비밀번호 불일치")
+                                    else: st.error("비밀번호 불일치")
                             with col_btn2:
                                 if st.button("🗑️ 삭제", key=f"del_{r_id}", type="primary", use_container_width=True):
                                     if r_password and del_pw == r_password:
                                         delete_report(r_id)
                                         st.success("삭제되었습니다!")
                                         st.rerun()
-                                    else:
-                                        st.error("비밀번호 불일치")
+                                    else: st.error("비밀번호 불일치")
                                     
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # ─── 🛠️ [신규&대폭 변경] 6개 초과 과거 제보 모아보기 구역 (시도별 필터 버튼 클릭 모아보기) ───
+    # ─── 6개 초과 과거 제보 모아보기 구역 (시도 필터링 버튼형) ───
     if extra_reports:
         st.write("---")
         
-        # 1. 시도 추출 헬퍼 함수
         def extract_sido_from_title(title_str):
             if title_str and " " in title_str:
                 return title_str.split(" ")[0].strip()
             return title_str if title_str else "지역 미상"
 
-        # 2. 보관된 제보데이터에서 고유 시도(SIDO_NM) 목록 추출하기
         available_sidos = set()
         dict_extra_reports = []
         for r_row in extra_reports:
@@ -660,21 +681,15 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
             sido_name = extract_sido_from_title(r_dict.get("region_title", ""))
             available_sidos.add(sido_name)
             
-        # 가나다 정렬 후 '지역 미상'은 맨 뒤로 배치
         sorted_sido_list = sorted(list(available_sidos), key=lambda x: (x == "지역 미상", x))
         filter_options = ["전체"] + sorted_sido_list
 
-        # 3. 접이식 더보기란 배치
         with st.expander(f"🌸 과거 제보 더보기 ({len(dict_extra_reports)}개 보관중 · 시도별 선택)", expanded=False):
-            
-            # 시도 선택 전용 가로형 버튼 메뉴 스타일 세팅
             st.markdown("<p style='font-size:14px; font-weight:700; color:#555; margin-bottom:8px;'>📍 조회할 시도를 클릭하세요:</p>", unsafe_allow_html=True)
             
-            # 가로로 여러 버튼을 조밀하게 나열하기 위해 다중 컬럼 생성
             filter_cols = st.columns(len(filter_options))
             for i, opt in enumerate(filter_options):
                 with filter_cols[i]:
-                    # 선택된 버튼은 주황빛 핑크색으로 하이라이팅 처리 효과 (Streamlit 기본 type 이용)
                     btn_type = "primary" if st.session_state.selected_sido_filter == opt else "secondary"
                     if st.button(opt, key=f"filter_btn_{opt}", type=btn_type, use_container_width=True):
                         st.session_state.selected_sido_filter = opt
@@ -682,13 +697,11 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                         
             st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
 
-            # 4. 선택된 시도 필터에 맞춰 데이터 거르기
             if st.session_state.selected_sido_filter == "전체":
                 filtered_reports = dict_extra_reports
             else:
                 filtered_reports = [r for r in dict_extra_reports if extract_sido_from_title(r.get("region_title", "")) == st.session_state.selected_sido_filter]
 
-            # 5. 거른 결과 가로 Grid 배치 (4열 구성)
             if not filtered_reports:
                 st.caption(f"선택하신 '{st.session_state.selected_sido_filter}' 지역에 보관된 제보가 없습니다.")
             else:
@@ -705,8 +718,7 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                     try:
                         b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
                         days_diff = (date.today() - b_date).days
-                    except:
-                        days_diff = 999
+                    except: days_diff = 999
                     
                     card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
                     card_title = r_region_title if r_region_title else "지역 미상"
@@ -725,7 +737,6 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                             )
                             edit_nick = st.text_input("👤 닉네임", value=r_nickname, key=f"ed_nick_ex_{r_id}")
                             edit_loc = st.text_input("📍 세부 장소", value=r_loc_name, key=f"ed_loc_ex_{r_id}")
-                            
                             try: current_b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
                             except: current_b_date = date.today()
                             edit_date = st.date_input("📅 개화 일자", value=current_b_date, key=f"ed_date_ex_{r_id}")
@@ -767,7 +778,6 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                                     if st.button("✏️ 수정", key=f"edit_admin_ex_{r_id}", use_container_width=True):
                                         st.session_state.edit_mode[r_id] = True
                                         st.rerun()
-                                opacity_col = col_adm2
                                 if st.button("🗑️ 삭제", key=f"del_admin_ex_{r_id}", type="primary", use_container_width=True):
                                     delete_report(r_id)
                                     st.toast("삭제되었습니다.")
