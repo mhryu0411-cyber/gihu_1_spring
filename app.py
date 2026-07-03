@@ -14,7 +14,7 @@ st.set_page_config(page_title="벚꽃 개화 제보", layout="wide", page_icon="
 with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
 
     # ─── 1. GeoJSON 파일 캐싱 ───
-    @st.cache_data(show_spinner=False) # 상단 글로벌 로딩으로 대체
+    @st.cache_data(show_spinner=False)
     def load_geojson():
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -94,14 +94,22 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
     if "selected_region" not in st.session_state: st.session_state.selected_region = ""
     if "is_admin" not in st.session_state: st.session_state.is_admin = False
     if "edit_mode" not in st.session_state: st.session_state.edit_mode = {}
+    # 더보기란 지역 필터링용 세션
+    if "selected_sido_filter" not in st.session_state: st.session_state.selected_sido_filter = "전체"
 
-    # ─── 전역 CSS 스타일 ───
+    # ─── 전역 CSS 스타일 (아이콘 깨짐/글자 겹침 집중 해결) ───
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
 
+        /* 아이콘 전용 클래스(:not)를 제외한 일반 텍스트 요소에만 폰트 적용하여 겹침 방지 */
         html, body, .stApp, [data-testid="stWidgetLabel"], h1, h2, h3, h4, h5, h6, p, span, div, input, textarea, button {
-            font-family: 'Nanum Gothic', sans-serif !important;
+            font-family: 'Nanum Gothic', sans-serif;
+        }
+        
+        /* Streamlit 아이콘 폰트 강제 유지 */
+        .st-emotion-cache-kiw0f, [aria-hidden="true"], [data-testid="stIcon"] {
+            font-family: "streamlit-icons" !important;
         }
         
         .block-container { padding-top: 1rem; }
@@ -290,7 +298,7 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
     fills = ["#F48FB1", "#F06292", "#E91E63", "#D81B60", "#AD1457", "#4A0014"] 
     lines = ["#C2185B", "#B71C1C", "#880E4F", "#7A0026", "#4A0014", "#25000A"]
 
-    # 데이터 분할 처리 (상위 6개는 카드 리스트, 나머지는 더보기용)
+    # 데이터 분할 처리 (상위 6개는 최근 내역 카드 리스트, 나머지는 더보기용)
     recent_reports = reports[:6]
     extra_reports = reports[6:]
 
@@ -520,7 +528,7 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                     st.session_state.click_lng = new_lng
                     st.rerun()
 
-    # ─── [우측 구역] 최근 제보 내역 카드(상위 6개만 세로 노출) ───
+    # ─── [우측 구역] 최근 제보 내역 카드 (최신 6개 고정) ───
     with main_col_cards:
         st.markdown("### 📋 최근 제보 내역")
         
@@ -529,7 +537,6 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
         else:
             st.markdown('<div class="scroll-container">', unsafe_allow_html=True)
             
-            # 상위 6개만 출력 루프
             for row in recent_reports:
                 r = dict(row)
                 r_id = r.get("id")
@@ -634,125 +641,151 @@ with st.spinner("🌸 Loading... 데이터를 불러오는 중입니다."):
                                     
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # ─── 🛠️ [신규 추가] 6개 초과 제보 모아보기 구역 (SIDO_NM 시도별 정렬 + 가로 배열 Grid) ───
+    # ─── 🛠️ [신규&대폭 변경] 6개 초과 과거 제보 모아보기 구역 (시도별 필터 버튼 클릭 모아보기) ───
     if extra_reports:
-        st.write("---") # 구분선 추가
+        st.write("---")
         
-        # 1. 'SIDO_NM' 기준으로 데이터 정렬 함수 정의
-        def get_sido_name(row_dict):
-            title = row_dict.get("region_title", "")
-            if title and " " in title:
-                return title.split(" ")[0] # '서울특별시 종로구' -> '서울특별시' 추출
-            return title if title else "지역 미상"
+        # 1. 시도 추출 헬퍼 함수
+        def extract_sido_from_title(title_str):
+            if title_str and " " in title_str:
+                return title_str.split(" ")[0].strip()
+            return title_str if title_str else "지역 미상"
 
-        # 파이썬 기본 sorted 기능 사용 (SIDO_NM 가나다순 정렬, 지역 미상은 맨 뒤로 보내기)
-        sorted_extra = sorted(
-            [dict(r) for r in extra_reports], 
-            key=lambda x: (get_sido_name(x) == "지역 미상", get_sido_name(x))
-        )
+        # 2. 보관된 제보데이터에서 고유 시도(SIDO_NM) 목록 추출하기
+        available_sidos = set()
+        dict_extra_reports = []
+        for r_row in extra_reports:
+            r_dict = dict(r_row)
+            dict_extra_reports.append(r_dict)
+            sido_name = extract_sido_from_title(r_dict.get("region_title", ""))
+            available_sidos.add(sido_name)
+            
+        # 가나다 정렬 후 '지역 미상'은 맨 뒤로 배치
+        sorted_sido_list = sorted(list(available_sidos), key=lambda x: (x == "지역 미상", x))
+        filter_options = ["전체"] + sorted_sido_list
 
-        # 2. 접이식 더보기란 배치
-        with st.expander(f"🌸 과거 제보 더보기 ({len(sorted_extra)}개 보관중 · 시도별 정렬됨)", expanded=False):
+        # 3. 접이식 더보기란 배치
+        with st.expander(f"🌸 과거 제보 더보기 ({len(dict_extra_reports)}개 보관중 · 시도별 선택)", expanded=False):
             
-            # 가로 배치를 위해 4개 열(Column) 레이아웃 생성
-            cols = st.columns(4)
+            # 시도 선택 전용 가로형 버튼 메뉴 스타일 세팅
+            st.markdown("<p style='font-size:14px; font-weight:700; color:#555; margin-bottom:8px;'>📍 조회할 시도를 클릭하세요:</p>", unsafe_allow_html=True)
             
-            for index, r in enumerate(sorted_extra):
-                r_id = r.get("id")
-                r_loc_name = r.get("location_name", "제보 위치")
-                r_bloom_date = r.get("bloom_date", "")
-                r_note = r.get("note", "")
-                r_nickname = r.get("nickname", "익명")
-                r_password = r.get("password", "")
-                r_region_title = r.get("region_title", "")
-                
-                try:
-                    b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-                    days_diff = (date.today() - b_date).days
-                except:
-                    days_diff = 999
-                
-                card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
-                card_title = r_region_title if r_region_title else "지역 미상"
-                
-                # 가로 순환 배치 연산 (0, 1, 2, 3번째 열에 차례대로 채우기)
-                current_col = cols[index % 4]
-                
-                with current_col:
-                    is_editing = st.session_state.edit_mode.get(r_id, False)
+            # 가로로 여러 버튼을 조밀하게 나열하기 위해 다중 컬럼 생성
+            filter_cols = st.columns(len(filter_options))
+            for i, opt in enumerate(filter_options):
+                with filter_cols[i]:
+                    # 선택된 버튼은 주황빛 핑크색으로 하이라이팅 처리 효과 (Streamlit 기본 type 이용)
+                    btn_type = "primary" if st.session_state.selected_sido_filter == opt else "secondary"
+                    if st.button(opt, key=f"filter_btn_{opt}", type=btn_type, use_container_width=True):
+                        st.session_state.selected_sido_filter = opt
+                        st.rerun()
+                        
+            st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
+
+            # 4. 선택된 시도 필터에 맞춰 데이터 거르기
+            if st.session_state.selected_sido_filter == "전체":
+                filtered_reports = dict_extra_reports
+            else:
+                filtered_reports = [r for r in dict_extra_reports if extract_sido_from_title(r.get("region_title", "")) == st.session_state.selected_sido_filter]
+
+            # 5. 거른 결과 가로 Grid 배치 (4열 구성)
+            if not filtered_reports:
+                st.caption(f"선택하신 '{st.session_state.selected_sido_filter}' 지역에 보관된 제보가 없습니다.")
+            else:
+                grid_cols = st.columns(4)
+                for index, r in enumerate(filtered_reports):
+                    r_id = r.get("id")
+                    r_loc_name = r.get("location_name", "제보 위치")
+                    r_bloom_date = r.get("bloom_date", "")
+                    r_note = r.get("note", "")
+                    r_nickname = r.get("nickname", "익명")
+                    r_password = r.get("password", "")
+                    r_region_title = r.get("region_title", "")
                     
-                    if is_editing:
-                        st.markdown(
-                            f'<div class="cherry-edit-card" style="font-family: \'Nanum Gothic\', sans-serif; min-height: 230px; border-left: 5px solid #00BCD4; background-color: #E0F7FA; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
-                            f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #006064; font-weight: 800;">⚙️ 수정 중 ({card_title})</h4>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-                        edit_nick = st.text_input("👤 닉네임", value=r_nickname, key=f"ed_nick_ex_{r_id}")
-                        edit_loc = st.text_input("📍 세부 장소", value=r_loc_name, key=f"ed_loc_ex_{r_id}")
+                    try:
+                        b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+                        days_diff = (date.today() - b_date).days
+                    except:
+                        days_diff = 999
+                    
+                    card_border, card_bg = ("#D81B60", "#FFE4E1") if days_diff <= 7 else ("#F48FB1", "#FFF5F7")
+                    card_title = r_region_title if r_region_title else "지역 미상"
+                    
+                    current_col = grid_cols[index % 4]
+                    
+                    with current_col:
+                        is_editing = st.session_state.edit_mode.get(r_id, False)
                         
-                        try: current_b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
-                        except: current_b_date = date.today()
-                        edit_date = st.date_input("📅 개화 일자", value=current_b_date, key=f"ed_date_ex_{r_id}")
-                        edit_note = st.text_area("📝 메모", value=r_note, key=f"ed_note_ex_{r_id}")
-                        
-                        btn_col1, btn_col2 = st.columns(2)
-                        with btn_col1:
-                            if st.button("💾 저장", key=f"save_ex_{r_id}", type="primary", use_container_width=True):
-                                if not edit_nick: st.error("닉네임 입력 필수")
-                                else:
-                                    update_report(r_id, edit_nick, edit_loc, edit_note, str(edit_date))
+                        if is_editing:
+                            st.markdown(
+                                f'<div class="cherry-edit-card" style="font-family: \'Nanum Gothic\', sans-serif; min-height: 230px; border-left: 5px solid #00BCD4; background-color: #E0F7FA; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                                f'<h4 style="margin: 0 0 6px; font-size: 14px; color: #006064; font-weight: 800;">⚙️ 수정 중 ({card_title})</h4>'
+                                f'</div>',
+                                unsafe_allow_html=True
+                            )
+                            edit_nick = st.text_input("👤 닉네임", value=r_nickname, key=f"ed_nick_ex_{r_id}")
+                            edit_loc = st.text_input("📍 세부 장소", value=r_loc_name, key=f"ed_loc_ex_{r_id}")
+                            
+                            try: current_b_date = datetime.strptime(r_bloom_date, "%Y-%m-%d").date()
+                            except: current_b_date = date.today()
+                            edit_date = st.date_input("📅 개화 일자", value=current_b_date, key=f"ed_date_ex_{r_id}")
+                            edit_note = st.text_area("📝 메모", value=r_note, key=f"ed_note_ex_{r_id}")
+                            
+                            btn_col1, btn_col2 = st.columns(2)
+                            with btn_col1:
+                                if st.button("💾 저장", key=f"save_ex_{r_id}", type="primary", use_container_width=True):
+                                    if not edit_nick: st.error("닉네임 입력 필수")
+                                    else:
+                                        update_report(r_id, edit_nick, edit_loc, edit_note, str(edit_date))
+                                        st.session_state.edit_mode[r_id] = False
+                                        st.toast("🌸 수정되었습니다!")
+                                        st.rerun()
+                            with btn_col2:
+                                if st.button("❌ 취소", key=f"cancel_ex_{r_id}", use_container_width=True):
                                     st.session_state.edit_mode[r_id] = False
-                                    st.toast("🌸 수정되었습니다!")
                                     st.rerun()
-                        with btn_col2:
-                            if st.button("❌ 취소", key=f"cancel_ex_{r_id}", use_container_width=True):
-                                st.session_state.edit_mode[r_id] = False
-                                st.rerun()
-                    else:
-                        note_content = r_note if r_note else '메모 없음'
-                        sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
-                        nickname_text = r_nickname if r_nickname else '익명'
+                        else:
+                            note_content = r_note if r_note else '메모 없음'
+                            sub_location = f"📍 {r_loc_name}" if r_loc_name else ""
+                            nickname_text = r_nickname if r_nickname else '익명'
+                            
+                            st.markdown(
+                                f'<div class="cherry-card" style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
+                                f'<h4 style="margin: 0 0 4px; font-size: 15px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 80%;">🌸 {card_title}</h4>'
+                                f'<p style="margin: 0; font-size: 12px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
+                                f'<p style="margin: 4px 0; font-size: 11px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
+                                f'<p style="margin: 6px 0 0; font-size: 12px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
+                                f'</div>',
+                                unsafe_allow_html=True
+                            )
                         
-                        # 가로 배치 시 텍스트가 삐져나가지 않도록 높이 및 말줄임표 처리 스타일 고정 유지
-                        st.markdown(
-                            f'<div class="cherry-card" style="font-family: \'Nanum Gothic\', sans-serif; height: 165px; border-left: 5px solid {card_border}; background-color: {card_bg}; padding: 14px 40px 14px 14px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 5px rgba(0,0,0,0.08);">'
-                            f'<h4 style="margin: 0 0 4px; font-size: 15px; color: #222; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 80%;">🌸 {card_title}</h4>'
-                            f'<p style="margin: 0; font-size: 12px; color: #FF1493; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sub_location}</p>'
-                            f'<p style="margin: 4px 0; font-size: 11px; color: #555; font-weight: 500;">👤 {nickname_text} | 📅 {r_bloom_date}</p>'
-                            f'<p style="margin: 6px 0 0; font-size: 12px; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; font-weight: 400;">📝 {note_content}</p>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-                    
-                    # 카드 관리용 미니 팝오버 메뉴 (가로 카드 내부 고정)
-                    with st.popover(""):
-                        if st.session_state.is_admin:
-                            st.info("👑 관리자")
-                            col_adm1, col_adm2 = st.columns(2)
-                            with col_adm1:
-                                if st.button("✏️ 수정", key=f"edit_admin_ex_{r_id}", use_container_width=True):
-                                    st.session_state.edit_mode[r_id] = True
-                                    st.rerun()
-                            with col_adm2:
+                        with st.popover(""):
+                            if st.session_state.is_admin:
+                                st.info("👑 관리자")
+                                col_adm1, col_adm2 = st.columns(2)
+                                with col_adm1:
+                                    if st.button("✏️ 수정", key=f"edit_admin_ex_{r_id}", use_container_width=True):
+                                        st.session_state.edit_mode[r_id] = True
+                                        st.rerun()
+                                opacity_col = col_adm2
                                 if st.button("🗑️ 삭제", key=f"del_admin_ex_{r_id}", type="primary", use_container_width=True):
                                     delete_report(r_id)
                                     st.toast("삭제되었습니다.")
                                     st.rerun()
-                        else:
-                            st.caption("비밀번호 입력")
-                            del_pw = st.text_input("비밀번호", type="password", key=f"pw_ex_{r_id}", label_visibility="collapsed")
-                            col_btn1, col_btn2 = st.columns(2)
-                            with col_btn1:
-                                if st.button("✏️ 수정", key=f"edit_click_ex_{r_id}", use_container_width=True):
-                                    if r_password and del_pw == r_password:
-                                        st.session_state.edit_mode[r_id] = True
-                                        st.rerun()
-                                    else: st.error("암호 불일치")
-                            with col_btn2:
-                                if st.button("🗑️ 삭제", key=f"del_ex_{r_id}", type="primary", use_container_width=True):
-                                    if r_password and del_pw == r_password:
-                                        delete_report(r_id)
-                                        st.success("삭제 완료!")
-                                        st.rerun()
-                                    else: st.error("암호 불일치")
+                            else:
+                                st.caption("비밀번호 입력")
+                                del_pw = st.text_input("비밀번호", type="password", key=f"pw_ex_{r_id}", label_visibility="collapsed")
+                                col_btn1, col_btn2 = st.columns(2)
+                                with col_btn1:
+                                    if st.button("✏️ 수정", key=f"edit_click_ex_{r_id}", use_container_width=True):
+                                        if r_password and del_pw == r_password:
+                                            st.session_state.edit_mode[r_id] = True
+                                            st.rerun()
+                                        else: st.error("암호 불일치")
+                                with col_btn2:
+                                    if st.button("🗑️ 삭제", key=f"del_ex_{r_id}", type="primary", use_container_width=True):
+                                        if r_password and del_pw == r_password:
+                                            delete_report(r_id)
+                                            st.success("삭제 완료!")
+                                            st.rerun()
+                                        else: st.error("암호 불일치")
