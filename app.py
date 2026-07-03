@@ -152,7 +152,6 @@ st.markdown("""
         color: #FF1493 !important;
     }
 
-    /* [수정] 지도 높이가 늘어남에 따라 카드 스크롤 컨테이너 높이도 850px에 맞게 확장 */
     .scroll-container {
         max-height: 850px;
         overflow-y: auto;
@@ -273,8 +272,10 @@ else:
     min_date = date.today()
     max_date = date.today()
 
-fills = ["#4A0014", "#7A0026", "#AD1457", "#D81B60", "#EC407A", "#F8BBD0"] 
-lines = ["#25000A", "#4A0014", "#7A0026", "#880E4F", "#C2185B", "#E91E63"]
+# [수정] 색상을 반전하고, 너무 연해서 안 보이던 옛날 파스텔 분홍을 제거
+# 빠를수록 연한 핑크, 늦을수록 진한 버건디 계열로 표출 (시인성 확보 완료)
+fills = ["#F48FB1", "#F06292", "#E91E63", "#D81B60", "#AD1457", "#4A0014"] 
+lines = ["#C2185B", "#B71C1C", "#880E4F", "#7A0026", "#4A0014", "#25000A"]
 
 # ─── 메인 화면 레이아웃 분할 ───
 main_col_map, main_col_cards = st.columns([7.5, 2.5])
@@ -294,7 +295,6 @@ with main_col_map:
         unsafe_allow_html=True
     )
 
-    # [수정] zoom_snap과 zoom_delta를 0.5로 명시하여 클릭 한 번당 줌 거리가 절반(10mi 단위 체감)으로 촘촘해지도록 제어
     m = folium.Map(
         location=[36.3, 127.8],
         zoom_start=9,
@@ -423,19 +423,19 @@ with main_col_map:
             )
         ).add_to(m)
 
+    # 하단 범례 색상바도 반전 순서(연함 -> 진함)에 매칭되도록 가디언트 순서 수정
     legend_html = f'''
     <div style="position: absolute; bottom: 20px; left: 20px; z-index: 9999; background: rgba(255,255,255,0.96); padding: 12px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 1px solid #FFB6C1; font-family: 'Nanum Gothic', sans-serif;">
-        <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상</div>
+        <div style="font-size: 12px; font-weight: 800; color: #333; margin-bottom: 6px; text-align: center;">🌸 개화 시기별 색상 (빠름 → 늦음)</div>
         <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 11px; color: #4A0014; font-weight: 900;">{min_date}</span>
-            <div style="width: 110px; height: 12px; background: linear-gradient(to right, #4A0014, #7A0026, #AD1457, #D81B60, #EC407A, #F8BBD0); border-radius: 6px;"></div>
-            <span style="font-size: 11px; color: #EC407A; font-weight: 700;">{max_date}</span>
+            <span style="font-size: 11px; color: #F48FB1; font-weight: 900;">{min_date}</span>
+            <div style="width: 140px; height: 12px; background: linear-gradient(to right, #F48FB1, #F06292, #E91E63, #D81B60, #AD1457, #4A0014); border-radius: 6px;"></div>
+            <span style="font-size: 11px; color: #4A0014; font-weight: 900;">{max_date}</span>
         </div>
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
 
-    # [수정] 지도 높이(height)를 기존 700에서 850으로 세로 확장 배치
     map_data = st_folium(
         m, 
         width=None, 
